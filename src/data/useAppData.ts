@@ -20,7 +20,12 @@ interface UndoItem {
  * backend. Los cambios se ven al instante (optimista) y se guardan en segundo
  * plano; si el guardado falla, se deshace en pantalla y se avisa.
  */
-export function useAppData(store: DataStore, onError: (msg: string) => void) {
+export function useAppData(store: DataStore, onErrorProp: (msg: string) => void) {
+  // El aviso de error puede cambiar en cada render de quien nos llama: se guarda
+  // en una referencia para que NO provoque recargas completas de datos.
+  const onErrorRef = useRef(onErrorProp);
+  onErrorRef.current = onErrorProp;
+  const onError = useCallback((msg: string) => onErrorRef.current(msg), []);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [entries, setEntries] = useState<Map<string, Entry>>(new Map());
@@ -90,7 +95,10 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [store, reloadAll, loadYear]);
+    // Solo al arrancar o si cambia el servidor: nunca por otros cambios de pantalla
+    // (antes se relanzaba cada 30 s y mostraba "Cargando datos…").
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store]);
 
   // Conexión
   useEffect(() => {
