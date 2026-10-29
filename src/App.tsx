@@ -12,6 +12,8 @@ import { DataView } from './views/DataView';
 import { SummaryView } from './views/SummaryView';
 import { SettingsView, EmployeeForm } from './views/SettingsView';
 import { Login } from './views/Login';
+import { MobileApp } from './mobile/MobileApp';
+import { useIdleLogout, useIsSmallScreen } from './mobile/mobileUtils';
 
 type Tab = 'calendar' | 'summary' | 'history' | 'data' | 'settings';
 const TABS: [Tab, string][] = [
@@ -34,11 +36,12 @@ export default function App() {
 function AuthGate({ store }: { store: DataStore }) {
   const [user, setUser] = useState<AppUser | null | undefined>(undefined);
   useEffect(() => { store.currentUser().then(setUser).catch(() => setUser(null)); }, [store]);
+  const logout = useCallback(async () => { await store.signOut(); setUser(null); }, [store]);
   if (user === undefined) return <div className="splash">Cargando…</div>;
   if (!user) return <Login store={store} onLogin={setUser} />;
   return (
     <AdminProvider store={store}>
-      <Main store={store} user={user} onLogout={async () => { await store.signOut(); setUser(null); }} />
+      <Main store={store} user={user} onLogout={logout} />
     </AdminProvider>
   );
 }
@@ -99,12 +102,23 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
 
   const others = useMemo(() => online.filter((u) => u.key !== 'me'), [online]);
 
+  // Móvil: vista propia (consulta + edición de un día) y sesión que caduca a las 8 h sin uso
+  const small = useIsSmallScreen();
+  const [forceDesktop, setForceDesktop] = useState(() => { try { return localStorage.getItem('ca-force-desktop') === '1'; } catch { return false; } });
+  const setDesktop = (v: boolean) => { setForceDesktop(v); try { localStorage.setItem('ca-force-desktop', v ? '1' : '0'); } catch { /* */ } };
+  useIdleLogout(small, onLogout);
+
   const statusText = {
     saved: '✓ Todo guardado',
     saving: '⟳ Guardando…',
     error: '⚠ Error al guardar',
     offline: '⚠ Sin conexión · solo lectura',
   }[data.status];
+
+  if (small && !forceDesktop) {
+    if (data.loading) return <div className="splash">Cargando datos…</div>;
+    return <MobileApp data={effective} user={user} onLogout={onLogout} onDesktop={() => setDesktop(true)} statusText={statusText} />;
+  }
 
   return (
     <div className="app">
@@ -136,6 +150,12 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         </div>
       </header>
 
+      {small && (
+        <div className="banner mobile-back">
+          Estás viendo la versión completa en una pantalla pequeña.
+          <button className="primary" onClick={() => setDesktop(false)}>📱 Volver a la vista móvil</button>
+        </div>
+      )}
       {store.mode === 'local' && (
         <div className="banner">
           <b>Modo local (prueba):</b> los datos se guardan solo en este navegador y no se comparten con el equipo.
