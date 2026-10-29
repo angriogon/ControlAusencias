@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppData } from '../data/useAppData';
 import { entryKey } from '../data/useAppData';
-import type { CellChange, Code, Employee } from '../types';
+import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type Code, type Employee, type PresenceUser } from '../types';
+import { useAdmin } from '../components/admin';
 import { MONTHS, dateRange, isWeekend, monthDays, todayIso, parseIso, formatDate } from '../lib/dates';
 import { codeMap } from '../lib/codes';
 import { Grid, type GridRow, type GroupRow } from '../components/Grid';
@@ -16,7 +17,10 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS) ?? '{}'); } catch { return {}; }
 }
 
-export function CalendarView({ data, onEditEmployee }: { data: AppData; onEditEmployee: (e: Employee) => void }) {
+export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
+  data: AppData; onEditEmployee: (e: Employee) => void;
+  presence: PresenceUser[]; onCursor: (c: { employeeId: string; date: string } | null) => void;
+}) {
   const t = parseIso(todayIso());
   const saved = loadPrefs();
   const [ym, setYm] = useState({ y: t.y, m: t.m0 });
@@ -131,7 +135,7 @@ export function CalendarView({ data, onEditEmployee }: { data: AppData; onEditEm
       {showLegend && <Legend codes={data.codes} used={usedCodes} />}
 
       <div className="hint">
-        Haz clic en un día para marcarlo · Arrastra para marcar varios · Teclado: flechas, escribe la clave + Enter, Supr para borrar, Ctrl+C / Ctrl+V, Ctrl+Z para deshacer.
+        Clic en un día para marcarlo · arrastra para varios · clic en un nombre = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
       </div>
 
       {ordered.length === 0
@@ -150,6 +154,8 @@ export function CalendarView({ data, onEditEmployee }: { data: AppData; onEditEm
             vacLeft={vacLeft}
             onApply={data.apply}
             onSaveNote={data.saveNote}
+            presence={presence}
+            onCursor={onCursor}
             onOpenEmployee={setCard}
           />
         )}
@@ -197,6 +203,7 @@ function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
   onClose: () => void; onApply: (c: CellChange[], label: string) => void;
 }) {
   const { toast } = useUi();
+  const admin = useAdmin();
   const first = `${month.y}-${String(month.m + 1).padStart(2, '0')}-01`;
   const [who, setWho] = useState<string>(employees[0]?.id ?? '');
   const [from, setFrom] = useState(todayIso().slice(0, 7) === first.slice(0, 7) ? todayIso() : first);
@@ -209,17 +216,23 @@ function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
   const targets = who === '*' ? employees : employees.filter((e) => e.id === who);
   const dates = from && to ? dateRange(from, to).filter((d) => !skipWeekends || !isWeekend(d)) : [];
   const changes: CellChange[] = [];
+  const protectedHits: { emp: Employee; date: string; code: string }[] = [];
   let skipped = 0;
   for (const e of targets) for (const d of dates) {
     const cur = existing(e.id, d);
     if (cur === code) continue;
+    // FN, FL y F nunca se sobrescriben desde aquí, aunque se marque "Sustituir"
+    if (cur && PROTECTED_CODES.includes(cur)) { protectedHits.push({ emp: e, date: d, code: cur }); continue; }
     if (cur && !overwrite) { skipped++; continue; }
     changes.push({ employeeId: e.id, date: d, code });
   }
   const tooLong = from && to && dateRange(from, to).length >= 1000;
+  const people = new Set(changes.map((c) => c.employeeId)).size;
+  const needsAdmin = people > MASS_PEOPLE_LIMIT && !admin.active;
 
   const submit = async () => {
     if (!changes.length) { toast('No hay nada que marcar con esas opciones', 'info'); return; }
+    if (needsAdmin && !(await admin.requestAdmin(`Vas a marcar a ${people} personas. Los cambios a más de ${MASS_PEOPLE_LIMIT} personas a la vez requieren el modo administrador.`))) return;
     setBusy(true);
     const whoTxt = who === '*' ? `${targets.length} personas` : targets[0]?.nombre;
     await onApply(changes, `Periodo ${code} · ${whoTxt} · ${formatDate(from)}–${formatDate(to)}`);
@@ -227,10 +240,10 @@ function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
   };
 
   return (
-    <Modal title="Marcar un periodo" onClose={onClose} footer={<>
+    <Modal title="Marcar un periodo" wide onClose={onClose} footer={<>
       <button onClick={onClose}>Cancelar</button>
       <button className="primary" disabled={busy || !changes.length || !!tooLong} onClick={submit}>
-        {busy ? 'Guardando…' : `Marcar ${changes.length} día(s)`}
+        {busy ? 'Guardando…' : `${needsAdmin ? '🔒 ' : ''}Marcar ${changes.length} día(s)`}
       </button>
     </>}>
       <div className="form">
@@ -255,7 +268,17 @@ function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
           </div>
         </label>
         <label className="check"><input type="checkbox" checked={skipWeekends} onChange={(e) => setSkipWeekends(e.target.checked)} /> Saltar sábados y domingos</label>
-        <label className="check"><input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} /> Sustituir los días que ya tienen otra clave</label>
+        <label className="check"><input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} /> Sustituir los días que ya tienen otra clave (nunca FN, FL ni F)</label>
+        {protectedHits.length > 0 && (
+          <div className="danger-box" role="alert">
+            <b>⚠ En el periodo hay {protectedHits.length} día(s) con FN, FL o F. No se modificarán:</b>
+            <ul>
+              {protectedHits.slice(0, 40).map((h) => <li key={`${h.emp.id}${h.date}`}>{h.code} · {formatDate(h.date)}{targets.length > 1 ? ` · ${h.emp.nombre}` : ''}</li>)}
+              {protectedHits.length > 40 && <li>… y {protectedHits.length - 40} más</li>}
+            </ul>
+          </div>
+        )}
+        {needsAdmin && <p className="warn-box">🔒 Afecta a {people} personas: al confirmar se pedirá la contraseña de administrador.</p>}
         {tooLong && <p className="warn">El periodo es demasiado largo.</p>}
         {skipped > 0 && !overwrite && <p className="muted">{skipped} día(s) ya tienen otra clave y no se tocarán.</p>}
       </div>

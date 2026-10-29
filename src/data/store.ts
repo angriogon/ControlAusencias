@@ -1,5 +1,5 @@
 import type {
-  AppUser, CellChange, Note, NoteChange, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
+  AdminStatus, AppUser, CellChange, Note, NoteChange, PresenceUser, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
 } from '../types';
 
 /**
@@ -47,6 +47,15 @@ export interface DataStore {
 
   // Tiempo real
   subscribe(cb: (e: LiveEvent) => void): () => void;
-  /** Personas conectadas ahora mismo (si el backend lo soporta). */
-  onPresence?(cb: (names: string[]) => void): () => void;
+  /** Compañeros conectados ahora mismo y en qué celda están. */
+  onPresence?(cb: (users: PresenceUser[]) => void): () => void;
+  /** Comunica en qué celda estoy (null = en ninguna). */
+  setCursor?(cell: { employeeId: string; date: string } | null): void;
+
+  // Modo administrador (contraseña compartida)
+  adminStatus(): Promise<AdminStatus>;
+  /** Devuelve la hora de caducidad o null si la contraseña es incorrecta. */
+  adminUnlock(password: string): Promise<string | null>;
+  adminLock(): Promise<void>;
+  setAdminPassword(current: string | null, next: string): Promise<void>;
 }

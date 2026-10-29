@@ -16,6 +16,11 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 
 - **Marcar un día**: clic en la celda → elige la clave en la paleta (o escribe «v» + Enter).
 - **Marcar varios**: arrastra con el ratón por encima de los días/personas y elige la clave.
+- **Filas y columnas**: clic en el nombre = todo su mes; clic en el número del día = ese día para todos; Mayús+clic amplía; clic en «Persona» = todo el mes. La ficha se abre con ⓘ.
+- **Paleta**: escribe para filtrar, muévete con las flechas y pulsa Enter: guarda la clave y la nota a la vez.
+- **Protegidas**: FN, FL y F nunca se sobrescriben en cambios de varias celdas ni en «Marcar periodo» (se avisa en rojo).
+- **Compañeros**: se ve en qué celda está cada uno (recuadro de color con sus iniciales).
+- **🔒 Modo administrador** (botón arriba, contraseña compartida, dura 4 h): necesario para importar, restaurar copias, gestionar personas y claves, y cambios a más de 5 personas a la vez. La contraseña se crea en Ajustes → Contraseña admin (usuarios con rol admin).
 - **Vacaciones de X a Y o festivo para todos**: botón **＋ Marcar periodo**.
 - **Borrar**: selecciona y pulsa `Supr`, o «Vaciar celda(s)» en la paleta.
 - **Me he equivocado**: `Ctrl+Z` o botón **↶ Deshacer** arriba. Para cambios de otros o más antiguos: pestaña **Historial**.

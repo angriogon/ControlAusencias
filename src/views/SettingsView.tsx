@@ -3,6 +3,7 @@ import type { DataStore } from '../data/store';
 import type { AppData } from '../data/useAppData';
 import type { AppUser, Code, Employee } from '../types';
 import { Modal, useUi } from '../components/ui';
+import { AdminGate, useAdmin } from '../components/admin';
 
 const blankEmployee = (orden: number): Employee => ({
   id: crypto.randomUUID(), nombre: '', telefono: '', extension: '', almacen: '', teamLeader: '', equipo: '',
@@ -15,12 +16,13 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
   editing: Employee | null; setEditing: (e: Employee | null) => void;
 }) {
   const { toast, confirm } = useUi();
-  const [tab, setTab] = useState<'people' | 'codes'>('people');
+  const [tab, setTab] = useState<'people' | 'codes' | 'admin'>('people');
   const [q, setQ] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [codeEdit, setCodeEdit] = useState<Code | null>(null);
-  const isAdmin = user.role === 'admin';
-  const canEdit = data.canEdit && user.role !== 'lector';
+  const admin = useAdmin();
+  const isAdmin = admin.active;
+  const canEdit = data.canEdit && user.role !== 'lector' && admin.active;
 
   const list = data.employees.filter((e) => (showInactive || e.activo)
     && (!q || [e.nombre, e.equipo, e.zona, e.sede].join(' ').toLowerCase().includes(q.toLowerCase())));
@@ -91,8 +93,15 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
         <div className="seg">
           <button className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')}>Personas ({data.employees.filter((e) => e.activo).length})</button>
           <button className={tab === 'codes' ? 'on' : ''} onClick={() => setTab('codes')}>Claves ({data.codes.length})</button>
+          {admin.status.canManage && <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>🔒 Contraseña admin</button>}
         </div>
       </div>
+
+      {tab !== 'admin' && !admin.active && (
+        <div className="panel"><AdminGate what="Añadir, editar u ocultar personas y claves">{null}</AdminGate></div>
+      )}
+
+      {tab === 'admin' && <AdminPasswordPanel />}
 
       {tab === 'people' && (
         <section className="panel">
@@ -152,7 +161,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
               ))}
             </tbody>
           </table>
-          {!isAdmin && <p className="muted small">Solo un administrador puede cambiar las claves.</p>}
+
         </section>
       )}
 
@@ -240,5 +249,45 @@ function CodeForm({ initial, isNew, onClose, onSave }: {
         <div>Vista previa: <span className="chip" style={{ background: c.color, color: c.textColor }}>{c.code || '?'}</span></div>
       </div>
     </Modal>
+  );
+}
+
+/** Crear o cambiar la contraseña del modo administrador (solo usuarios con rol admin). */
+function AdminPasswordPanel() {
+  const admin = useAdmin();
+  const { toast } = useUi();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [next2, setNext2] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const configured = admin.status.configured;
+
+  const save = async () => {
+    setError('');
+    if (next !== next2) { setError('Las dos contraseñas nuevas no coinciden'); return; }
+    setBusy(true);
+    try {
+      await admin.setPassword(configured ? current : null, next);
+      toast(configured ? 'Contraseña de administrador cambiada' : 'Contraseña de administrador creada');
+      setCurrent(''); setNext(''); setNext2('');
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+
+  return (
+    <section className="panel">
+      <h2>{configured ? 'Cambiar la contraseña de administrador' : 'Crear la contraseña de administrador'}</h2>
+      <p className="muted small">
+        Es una contraseña compartida para quienes deban importar, restaurar copias, gestionar personas y claves o hacer
+        cambios a más de 5 personas a la vez. Se guarda cifrada; ni siquiera se puede consultar, solo cambiar.
+      </p>
+      <div className="form narrow">
+        {configured && <label>Contraseña actual<input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></label>}
+        <label>Nueva contraseña (mínimo 8 caracteres)<input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></label>
+        <label>Repite la nueva contraseña<input type="password" autoComplete="new-password" value={next2} onChange={(e) => setNext2(e.target.value)} /></label>
+        {error && <p className="error">{error}</p>}
+        <div><button className="primary" disabled={busy || next.length < 8 || (configured && !current)} onClick={save}>{busy ? 'Guardando…' : 'Guardar contraseña'}</button></div>
+      </div>
+    </section>
   );
 }

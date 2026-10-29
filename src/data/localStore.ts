@@ -1,13 +1,22 @@
 import type { DataStore } from './store';
 import {
-  ConflictError,
+  AdminRequiredError, ConflictError, MASS_PEOPLE_LIMIT,
+  type AdminStatus, type PresenceUser,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
   type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
 } from '../types';
 import { demoDataset } from './demo';
 import { idbGet, idbSet, idbDel } from './idb';
+import { colorForName } from '../lib/colors';
 
 const USER_KEY = 'ca-local-user';
+const ADMIN_HASH = 'ca-local-admin-hash';
+const ADMIN_UNTIL = 'ca-local-admin-until';
+
+async function sha256(text: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 const ek = (employeeId: string, date: string) => `${employeeId}|${date}`;
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
@@ -179,7 +188,19 @@ export class LocalStore implements DataStore {
     };
   }
 
+  private isAdminMode() {
+    return Number(localStorage.getItem(ADMIN_UNTIL) ?? 0) > Date.now();
+  }
+
+  private requireAdmin(what: string) {
+    if (!this.isAdminMode()) throw new AdminRequiredError(`${what} requiere el modo administrador.`);
+  }
+
   async applyChanges(changes: CellChange[], label: string) {
+    const people = new Set(changes.map((c) => c.employeeId)).size;
+    if (people > MASS_PEOPLE_LIMIT && !this.isAdminMode()) {
+      throw new AdminRequiredError(`Este cambio afecta a ${people} personas. Los cambios a más de ${MASS_PEOPLE_LIMIT} personas a la vez requieren el modo administrador.`);
+    }
     return this.write(changes.map((c) => ({ kind: 'entry' as const, ...c })), label);
   }
 
@@ -188,15 +209,18 @@ export class LocalStore implements DataStore {
   }
 
   async saveEmployee(e: Employee) {
+    this.requireAdmin('Gestionar personas');
     await this.write([{ kind: 'employee', id: e.id, value: e }], this.state.employees.has(e.id) ? `Edita ficha de ${e.nombre}` : `Alta de ${e.nombre}`);
     return e;
   }
 
   async saveCode(c: Code) {
+    this.requireAdmin('Cambiar las claves');
     await this.write([{ kind: 'code', key: c.code, value: c }], `Clave ${c.code}`);
   }
 
   async deleteEmployee(id: string) {
+    this.requireAdmin('Eliminar personas');
     await this.ready;
     const emp = this.state.employees.get(id);
     const ops: Op[] = [...this.state.entries.values()]
@@ -316,11 +340,13 @@ export class LocalStore implements DataStore {
   }
 
   async restoreSnapshot(id: number) {
+    this.requireAdmin('Restaurar copias');
     const snap = this.state.snapshots.find((x) => x.id === id);
     await this.replaceAll(await this.getSnapshot(id), `Restaura copia "${snap?.label ?? id}"`, 'restore');
   }
 
   async importDataset(d: Dataset, label: string) {
+    this.requireAdmin('Importar datos');
     await this.replaceAll(d, label, 'import');
   }
 
@@ -328,5 +354,75 @@ export class LocalStore implements DataStore {
   subscribe(cb: (e: LiveEvent) => void) {
     this.listeners.add(cb);
     return () => { this.listeners.delete(cb); };
+  }
+
+  // ---------- presencia entre pestañas (simula a varios compañeros) ----------
+  private presenceId = crypto.randomUUID();
+  private presenceChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ca-presence') : null;
+  private peers = new Map<string, PresenceUser & { ts: number }>();
+  private myCell: PresenceUser['cell'] = null;
+
+  private announce() {
+    const name = this.userName();
+    this.presenceChannel?.postMessage({ key: this.presenceId, name, color: colorForName(name), cell: this.myCell, ts: Date.now() });
+  }
+
+  onPresence(cb: (users: PresenceUser[]) => void) {
+    const emit = () => {
+      const now = Date.now();
+      for (const [k, p] of this.peers) if (now - p.ts > 6000) this.peers.delete(k);
+      const name = this.userName();
+      cb([{ key: 'me', name, color: colorForName(name), cell: this.myCell }, ...[...this.peers.values()].map(({ ts: _ts, ...u }) => u)]);
+    };
+    const onMsg = (ev: MessageEvent) => {
+      const m = ev.data as PresenceUser & { ts: number; bye?: boolean };
+      if (m.key === this.presenceId) return;
+      if (m.bye) this.peers.delete(m.key); else this.peers.set(m.key, m);
+      emit();
+    };
+    this.presenceChannel?.addEventListener('message', onMsg);
+    this.announce();
+    const timer = setInterval(() => { this.announce(); emit(); }, 2000);
+    emit();
+    return () => {
+      clearInterval(timer);
+      this.presenceChannel?.removeEventListener('message', onMsg);
+      this.presenceChannel?.postMessage({ key: this.presenceId, bye: true });
+    };
+  }
+
+  setCursor(cell: PresenceUser['cell']) {
+    this.myCell = cell;
+    this.announce();
+  }
+
+  // ---------- modo administrador (contraseña guardada cifrada en este navegador) ----------
+  async adminStatus(): Promise<AdminStatus> {
+    const until = Number(localStorage.getItem(ADMIN_UNTIL) ?? 0);
+    return {
+      configured: !!localStorage.getItem(ADMIN_HASH),
+      until: until > Date.now() ? new Date(until).toISOString() : null,
+      canManage: true,
+    };
+  }
+
+  async adminUnlock(password: string) {
+    const hash = localStorage.getItem(ADMIN_HASH);
+    if (!hash) throw new Error('Todavía no hay contraseña de administrador: créala desde Ajustes.');
+    if ((await sha256(password)) !== hash) return null;
+    const until = Date.now() + 4 * 3600 * 1000;
+    localStorage.setItem(ADMIN_UNTIL, String(until));
+    return new Date(until).toISOString();
+  }
+
+  async adminLock() {
+    localStorage.removeItem(ADMIN_UNTIL);
+  }
+
+  async setAdminPassword(current: string | null, next: string) {
+    if (next.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+    const hash = localStorage.getItem(ADMIN_HASH);
+    if (hash && (await sha256(current ?? '')) !== hash) throw new Error('La contraseña actual no es correcta');
+    localStorage.setItem(ADMIN_HASH, await sha256(next));
   }
 }
