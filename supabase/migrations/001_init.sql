@@ -428,6 +428,28 @@ create policy l_read on public.change_log for select to authenticated using (tru
 drop policy if exists s_read on public.snapshots;
 create policy s_read on public.snapshots for select to authenticated using (true);
 
+-- Las funciones solo las pueden llamar usuarios con sesión iniciada
+-- (por defecto PostgreSQL deja ejecutarlas a cualquiera, incluido "anon").
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'public.my_role()', 'public.my_name()',
+    'public.apply_entries(jsonb, text)', 'public.save_employee(jsonb, text)',
+    'public.delete_employee(uuid, text)', 'public.save_code(jsonb, text)',
+    'public.revert_changes(bigint[], boolean)', 'public.revert_batch(uuid, boolean)',
+    'public.create_snapshot(text, boolean)', 'public.replace_all(jsonb, text, text)',
+    'public.restore_snapshot(bigint)'
+  ] loop
+    execute format('revoke execute on function %s from public, anon', f);
+    execute format('grant execute on function %s to authenticated', f);
+  end loop;
+  -- Funciones internas de triggers: nadie las llama directamente
+  revoke execute on function public.handle_new_user() from public, anon, authenticated;
+  revoke execute on function public.audit_row() from public, anon, authenticated;
+  revoke execute on function public.stamp_entry() from public, anon, authenticated;
+end $$;
+
 -- ---------- Tiempo real ----------
 alter table public.entries replica identity full;
 alter table public.employees replica identity full;
