@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { DataStore } from '../data/store';
 import type { AdminStatus } from '../types';
 import { Modal, useUi } from './ui';
@@ -53,6 +53,7 @@ export function AdminProvider({ store, children }: { store: DataStore; children:
   }, [active]);
 
   const lock = useCallback(async () => {
+    wasActive.current = false; // salida manual: no avisar de "caducado"
     await store.adminLock();
     await refresh();
     toast('Modo administrador desactivado', 'info');
@@ -65,8 +66,12 @@ export function AdminProvider({ store, children }: { store: DataStore; children:
 
   const close = (ok: boolean) => { prompt?.resolve(ok); setPrompt(null); };
 
+  // Mismo objeto mientras no cambie nada real (el reloj de 30 s no debe repintar la app)
+  const value = useMemo(() => ({ status, active, requestAdmin, lock, refresh, setPassword }),
+    [status, active, requestAdmin, lock, refresh, setPassword]);
+
   return (
-    <Ctx.Provider value={{ status, active, requestAdmin, lock, refresh, setPassword }}>
+    <Ctx.Provider value={value}>
       {children}
       {prompt && (
         <UnlockDialog
