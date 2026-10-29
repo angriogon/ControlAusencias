@@ -6,6 +6,7 @@ import {
   MONTHS, WEEKDAY_LETTER, addDays, formatDate, formatDateLong, isWeekend, monthDays, parseIso, todayIso, weekday,
 } from '../lib/dates';
 import { useUi } from '../components/ui';
+import { matches } from '../lib/search';
 import { DayEditor } from './DayEditor';
 import { cap, parsePhones } from './mobileUtils';
 import './mobile.css';
@@ -167,9 +168,7 @@ function PeopleView({ data, onOpen }: { data: AppData; onOpen: (e: Employee) => 
   const [q, setQ] = useState('');
   const today = todayIso();
   const byCode = new Map(data.codes.map((c) => [c.code, c]));
-  const s = q.trim().toLowerCase();
-  const list = data.employees.filter((e) => e.activo && (!s
-    || [e.nombre, e.zona, e.sede, e.equipo, e.telefono, e.extension, e.almacen].join(' ').toLowerCase().includes(s)));
+  const list = data.employees.filter((e) => e.activo && matches(q, e.nombre, e.zona, e.sede, e.equipo, e.telefono, e.extension, e.almacen));
 
   return (
     <div className="m-page">
