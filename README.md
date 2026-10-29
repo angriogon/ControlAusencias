@@ -20,7 +20,8 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 - **Borrar**: selecciona y pulsa `Supr`, o «Vaciar celda(s)» en la paleta.
 - **Me he equivocado**: `Ctrl+Z` o botón **↶ Deshacer** arriba. Para cambios de otros o más antiguos: pestaña **Historial**.
 - `Ctrl+C` / `Ctrl+V` funcionan como en Excel (también pegando desde Excel).
-- Clic en el nombre de una persona: teléfono, extensión y resumen del año.
+- **Notas** (como las del Excel): las celdas con nota llevan un triángulo rojo en la esquina; se leen pasando el ratón y se escriben o borran desde la paleta («📝 Añadir nota a este día»). Una celda puede tener nota aunque no tenga clave. Quedan en el historial y se pueden deshacer.
+- Clic en el nombre de una persona: teléfono, extensión, resumen del año y sus notas.
 - La columna **Vac.** muestra las vacaciones (V) que le quedan en el año. Abajo, el total de ausencias del día y el %.
 - Instalar en el PC: en Edge/Chrome, icono «Instalar aplicación» en la barra de direcciones.
 
@@ -34,7 +35,7 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 > ⚠️ **Antes de nada:** el Excel contiene datos personales (nombres, teléfonos personales). Subirlos a un servicio externo (Supabase, servidores en la UE) debe estar autorizado por tu empresa/IT (RGPD). Si no lo está, la alternativa es la misma app contra SharePoint/Microsoft 365 (ver «Alternativas»).
 
 1. Crea un proyecto en [supabase.com](https://supabase.com) (región UE, p. ej. Frankfurt/Irlanda).
-2. **SQL Editor** → pega y ejecuta `supabase/migrations/001_init.sql`.
+2. **SQL Editor** → pega y ejecuta, en orden, los archivos de `supabase/migrations/` (`001`, `002`, `003`…).
 3. **Authentication → Sign In / Providers**: desactiva «Allow new users to sign up» (solo entran los que des de alta).
 4. **Authentication → Users → Add user** para cada compañero (correo + contraseña). Opcional: en «User metadata» `{"name": "Nombre Apellido"}` para que el historial muestre su nombre.
 5. Hazte administrador (SQL Editor):

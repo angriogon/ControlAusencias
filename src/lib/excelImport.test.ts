@@ -10,8 +10,11 @@ describe.runIf(path && existsSync(path))('importación del Excel real', () => {
   it('lee personas, fechas y marcas', () => {
     const r = parseWorkbook(readFileSync(path!));
     console.log(JSON.stringify({ stats: r.stats, warnings: r.warnings }, null, 2));
+    console.log((r.dataset.notes ?? []).slice(0, 5).map((n) => `${n.date} | ${n.author} | ${JSON.stringify(n.text)}`).join("\n"));
+    console.log("con nota en ficha:", r.dataset.employees.filter((e) => e.notas).map((e) => e.notas).join(" || "));
     console.log(r.dataset.employees.slice(0, 3).map((e) => `${e.nombre} | ${e.equipo} | ${e.zona} | ${e.sede} | vac ${e.diasVacaciones}`).join('\n'));
     expect(r.stats.employees).toBeGreaterThan(50);
     expect(r.stats.entries).toBeGreaterThan(1000);
+    expect(r.stats.notes).toBeGreaterThan(3000);
   });
 });

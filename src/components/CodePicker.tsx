@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Code } from '../types';
+import type { Code, Note } from '../types';
 import { relativeTime } from '../lib/dates';
 
 interface Props {
@@ -9,6 +9,9 @@ interface Props {
   codes: Code[];
   current: string | null;
   lastChange: { by: string; at?: string } | null;
+  /** undefined = varias celdas (no se edita nota); null = celda sin nota. */
+  note?: Note | null;
+  onSaveNote: (text: string) => void;
   onPick: (code: string | null) => void;
   onClose: () => void;
 }
@@ -19,6 +22,9 @@ interface Props {
  */
 export function CodePicker(p: Props) {
   const [filter, setFilter] = useState(p.initialFilter);
+  const [noteText, setNoteText] = useState(p.note?.text ?? '');
+  const [noteOpen, setNoteOpen] = useState(!!p.note);
+  const noteDirty = noteText.trim() !== (p.note?.text ?? '').trim();
   const box = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: p.x, top: p.y });
 
@@ -91,6 +97,34 @@ export function CodePicker(p: Props) {
         ))}
         {!list.length && <div className="muted pad">No hay ninguna clave que coincida.</div>}
       </div>
+      {p.note !== undefined && (
+        <div className="picker-note">
+          {!noteOpen ? (
+            <button className="link" onClick={() => setNoteOpen(true)}>📝 Añadir nota a este día</button>
+          ) : (
+            <>
+              <div className="picker-note-head">
+                <strong>📝 Nota</strong>
+                {p.note && <small className="muted">{p.note.author}{p.note.updatedAt ? ` · ${relativeTime(p.note.updatedAt)}` : ''}</small>}
+              </div>
+              <textarea
+                rows={3}
+                value={noteText}
+                placeholder="Ej.: cita médica a las 10:00, cubre a…"
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { e.preventDefault(); p.onClose(); }
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); p.onSaveNote(noteText); }
+                }}
+              />
+              <div className="picker-note-actions">
+                {p.note && <button className="danger-ghost" onClick={() => p.onSaveNote('')}>Borrar nota</button>}
+                <button className="primary" disabled={!noteDirty} onClick={() => p.onSaveNote(noteText)}>Guardar nota</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <div className="picker-foot">
         <button className="danger-ghost" onClick={() => p.onPick(null)}>🗑 Vaciar celda(s)</button>
         <span className="muted small">Enter = primera opción · Esc = cerrar</span>

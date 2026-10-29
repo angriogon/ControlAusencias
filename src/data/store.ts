@@ -1,5 +1,5 @@
 import type {
-  AppUser, CellChange, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
+  AppUser, CellChange, Note, NoteChange, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
 } from '../types';
 
 /**
@@ -19,10 +19,12 @@ export interface DataStore {
   // Lectura
   loadBase(): Promise<Pick<Dataset, 'employees' | 'codes'>>;
   loadEntries(from: string, to: string): Promise<Dataset['entries']>;
+  loadNotes(from: string, to: string): Promise<Note[]>;
 
   // Escritura: cada llamada es UN lote en el historial (se deshace de una vez).
   /** Devuelve el id de lote, para poder deshacerlo desde el historial. */
   applyChanges(changes: CellChange[], label: string): Promise<string | null>;
+  applyNotes(changes: NoteChange[], label: string): Promise<string | null>;
   saveEmployee(e: Employee): Promise<Employee>;
   saveCode(c: Code): Promise<void>;
   /** Borrado definitivo de una persona y todas sus marcas (se puede revertir desde historial). */

@@ -16,6 +16,7 @@ export async function exportToExcel(d: Dataset, from: string, to: string, fileNa
   const days = dateRange(from, to);
   const emps = [...d.employees].filter((e) => e.activo).sort((a, b) => a.orden - b.orden);
   const byKey = new Map(d.entries.map((e) => [`${e.employeeId}|${e.date}`, e.code]));
+  const noteByKey = new Map((d.notes ?? []).map((n) => [`${n.employeeId}|${n.date}`, n]));
 
   // ---------- Hoja calendario ----------
   const ws = wb.addWorksheet('Ausencias', { views: [{ state: 'frozen', xSplit: 5, ySplit: 3 }] });
@@ -44,6 +45,8 @@ export async function exportToExcel(d: Dataset, from: string, to: string, fileNa
     [e.nombre, e.equipo, e.zona, e.sede, e.teamLeader].forEach((v, i) => { row.getCell(i + 1).value = v; });
     days.forEach((day, i) => {
       const code = byKey.get(`${e.id}|${day}`);
+      const note = noteByKey.get(`${e.id}|${day}`);
+      if (note) row.getCell(info.length + 1 + i).note = note.author ? `${note.author}:\n${note.text}` : note.text;
       if (!code) return;
       const cell = row.getCell(info.length + 1 + i);
       cell.value = code;

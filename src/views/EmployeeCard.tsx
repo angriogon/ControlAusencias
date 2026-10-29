@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { AppData } from '../data/useAppData';
 import type { Employee } from '../types';
 import { Modal } from '../components/ui';
+import { formatDate } from '../lib/dates';
 
 /** Ficha rápida: datos de contacto y resumen del año de una persona. */
 export function EmployeeCard({ emp, year, data, onClose, onEdit }: {
@@ -14,6 +15,9 @@ export function EmployeeCard({ emp, year, data, onClose, onEdit }: {
     }
     return m;
   }, [data.entries, emp.id, year]);
+  const yearNotes = useMemo(() => [...data.notes.values()]
+    .filter((n) => n.employeeId === emp.id && n.date.startsWith(`${year}-`))
+    .sort((a, b) => b.date.localeCompare(a.date)), [data.notes, emp.id, year]);
   const v = counts.get('V') ?? 0;
   const vp = counts.get('VP') ?? 0;
 
@@ -46,6 +50,16 @@ export function EmployeeCard({ emp, year, data, onClose, onEdit }: {
         ))}
         {!counts.size && <span className="muted">Sin marcas este año.</span>}
       </div>
+      {yearNotes.length > 0 && (
+        <>
+          <h3>Notas de {year} ({yearNotes.length})</h3>
+          <ul className="note-list">
+            {yearNotes.map((n) => (
+              <li key={n.date}><b>{formatDate(n.date)}</b>{n.text}{n.author && <span className="muted small"> — {n.author}</span>}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </Modal>
   );
 }

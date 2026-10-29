@@ -185,7 +185,7 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
 
 /* ---------- Paleta de claves ---------- */
 .picker {
-  position: fixed; z-index: 50; width: 520px; max-width: calc(100vw - 24px); max-height: min(560px, calc(100vh - 24px));
+  position: fixed; z-index: 50; width: 520px; max-width: calc(100vw - 24px); max-height: min(680px, calc(100vh - 24px));
   background: #fff; border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--line);
   display: flex; flex-direction: column; overflow: hidden;
 }
@@ -308,3 +308,17 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
   .topbar, .toolbar, .hint, .banner, .legend { display: none; }
   .grid-wrap { overflow: visible; border: none; }
 }
+
+/* ---------- Notas de celda ---------- */
+.cell.has-note::before {
+  content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0;
+  border-top: 7px solid #d32f2f; border-left: 7px solid transparent; pointer-events: none;
+}
+.picker-note { border-top: 1px solid var(--line); padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.picker-note-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.picker-note textarea { resize: vertical; min-height: 56px; }
+.picker-note-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.picker-note .link { align-self: flex-start; padding-left: 0; }
+.note-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; }
+.note-list li { font-size: 12.5px; background: #fffbea; border: 1px solid #f1e3a8; border-radius: 8px; padding: 6px 8px; }
+.note-list li b { margin-right: 6px; }

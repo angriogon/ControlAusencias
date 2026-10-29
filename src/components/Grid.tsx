@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from 'react';
-import type { CellChange, Code, Employee, Entry } from '../types';
+import type { CellChange, Code, Employee, Entry, Note } from '../types';
 import { entryKey } from '../data/useAppData';
 import { WEEKDAY_LETTER, formatDate, formatDateLong, isWeekend, isoWeek, parseIso, todayIso, weekday } from '../lib/dates';
 import { normalizeCode } from '../lib/codes';
@@ -17,12 +17,14 @@ interface Props {
   rows: (GridRow | GroupRow)[];
   employees: Employee[]; // solo personas, en el mismo orden que rows
   entries: Map<string, Entry>;
+  notes: Map<string, Note>;
   codes: Code[];
   codeByKey: Map<string, Code>;
   flash: Map<string, number>;
   canEdit: boolean;
   vacLeft: Map<string, number>;
   onApply: (changes: CellChange[], label: string) => Promise<boolean>;
+  onSaveNote: (employeeId: string, date: string, text: string, label: string) => Promise<boolean>;
   onOpenEmployee: (e: Employee) => void;
 }
 
@@ -181,7 +183,18 @@ export function Grid(p: Props) {
     return { abs, per };
   }), [p.days, p.employees, p.entries, p.codeByKey]);
 
-  const single = r && selCount === 1 ? p.entries.get(entryKey(p.employees[r.r0]?.id, p.days[r.c0])) : undefined;
+  const singleKey = r && selCount === 1 && p.employees[r.r0] ? entryKey(p.employees[r.r0].id, p.days[r.c0]) : null;
+  const single = singleKey ? p.entries.get(singleKey) : undefined;
+  const singleNote = singleKey ? p.notes.get(singleKey) ?? null : null;
+
+  const saveNote = async (text: string) => {
+    if (!r || selCount !== 1) return;
+    const emp = p.employees[r.r0];
+    const date = p.days[r.c0];
+    const label = `${text.trim() ? 'Nota' : 'Borra nota'} · ${emp.nombre} ${formatDate(date)}`;
+    if (await p.onSaveNote(emp.id, date, text, label)) setPicker(null);
+    wrap.current?.focus();
+  };
 
   return (
     <div className="grid-wrap" ref={wrap} tabIndex={0} onKeyDown={onKey} aria-label="Calendario de ausencias">
@@ -224,6 +237,10 @@ export function Grid(p: Props) {
                 days={p.days}
                 today={today}
                 sig={p.days.map((d) => p.entries.get(entryKey(row.emp.id, d))?.code ?? '').join('|')}
+                noteSig={p.days.map((d) => {
+                  const n = p.notes.get(entryKey(row.emp.id, d));
+                  return n ? `${n.author ? `${n.author}: ` : ''}${n.text}` : '';
+                }).join('\u0001')}
                 entries={p.entries}
                 codeByKey={p.codeByKey}
                 selC0={r && row.idx >= r.r0 && row.idx <= r.r1 ? r.c0 : -1}
@@ -269,6 +286,8 @@ export function Grid(p: Props) {
           codes={p.codes.filter((c) => c.activo)}
           current={single?.code ?? null}
           lastChange={single?.updatedBy ? { by: single.updatedBy, at: single.updatedAt } : null}
+          note={selCount === 1 ? singleNote : undefined}
+          onSaveNote={saveNote}
           onPick={applyCode}
           onClose={() => { setPicker(null); wrap.current?.focus(); }}
         />
@@ -278,7 +297,7 @@ export function Grid(p: Props) {
 }
 
 interface RowProps {
-  emp: Employee; ri: number; days: string[]; today: string; sig: string;
+  emp: Employee; ri: number; days: string[]; today: string; sig: string; noteSig: string;
   entries: Map<string, Entry>; codeByKey: Map<string, Code>;
   selC0: number; selC1: number; focusC: number; flashSig: string; vacLeft?: number;
   onDown: (r: number, c: number, shift: boolean) => void;
@@ -289,6 +308,7 @@ interface RowProps {
 /** Fila memorizada: solo se repinta si cambian sus marcas, su selección o su resaltado. */
 const GridRowView = memo(function GridRowView(p: RowProps) {
   const codes = p.sig.split('|');
+  const notes = p.noteSig.split('\u0001');
   const flashing = new Set(p.flashSig ? p.flashSig.split(',') : []);
   return (
     <tr>
@@ -312,7 +332,9 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
           ci === p.focusC ? 'focus' : '',
           flashing.has(d) ? 'flash' : '',
           code && !c ? 'unknown' : '',
+          notes[ci] ? 'has-note' : '',
         ].join(' ');
+        const tip = [c ? `${c.code} · ${c.label}` : '', notes[ci] ? `📝 ${notes[ci]}` : ''].filter(Boolean).join('\n\n');
         return (
           <td
             key={d}
@@ -321,7 +343,7 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
             style={c ? { background: c.color, color: c.textColor } : undefined}
             onMouseDown={(e) => { if (e.button === 0) { e.preventDefault(); p.onDown(p.ri, ci, e.shiftKey); } }}
             onMouseEnter={() => p.onEnter(p.ri, ci)}
-            title={c ? `${c.code} · ${c.label}` : undefined}
+            title={tip || undefined}
           >
             {code}
           </td>
@@ -329,6 +351,6 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
       })}
     </tr>
   );
-}, (a, b) => a.sig === b.sig && a.selC0 === b.selC0 && a.selC1 === b.selC1 && a.focusC === b.focusC
+}, (a, b) => a.sig === b.sig && a.noteSig === b.noteSig && a.selC0 === b.selC0 && a.selC1 === b.selC1 && a.focusC === b.focusC
   && a.flashSig === b.flashSig && a.emp === b.emp && a.days === b.days && a.vacLeft === b.vacLeft
   && a.codeByKey === b.codeByKey && a.ri === b.ri);

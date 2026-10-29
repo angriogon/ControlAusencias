@@ -51,6 +51,9 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     apply: readOnly
       ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
       : data.apply,
+    saveNote: readOnly
+      ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
+      : data.saveNote,
   }), [data, readOnly, toast]);
 
   useEffect(() => { try { localStorage.setItem('ca-tab', tab); } catch { /* */ } }, [tab]);

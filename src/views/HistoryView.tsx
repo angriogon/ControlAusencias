@@ -173,6 +173,10 @@ function ChangeText({ c, name, codes }: { c: ChangeLog; name: string; codes: Map
   if (c.entity === 'entry') {
     return <span><b>{name}</b> · {c.date ? formatDate(c.date) : ''}: <Val code={c.oldValue} codes={codes} /> → <Val code={c.newValue} codes={codes} /></span>;
   }
+  if (c.entity === 'note') {
+    const q = (v: unknown) => (v ? <i>«{String(v)}»</i> : <span className="muted">(sin nota)</span>);
+    return <span>📝 <b>{name}</b> · {c.date ? formatDate(c.date) : ''}: {q(c.oldValue)} → {q(c.newValue)}</span>;
+  }
   if (c.entity === 'employee') {
     const o = c.oldValue as Employee | null;
     const n = c.newValue as Employee | null;
@@ -190,8 +194,8 @@ function ChangeText({ c, name, codes }: { c: ChangeLog; name: string; codes: Map
     const n = c.newValue as Code | null;
     return <span>Clave <b>{(n ?? o)?.code}</b>: {o ? (n ? 'modificada' : 'eliminada') : 'creada'}{n ? ` («${n.label}»)` : ''}</span>;
   }
-  const v = c.newValue as { employees?: number; entries?: number } | null;
-  return <span>{c.batchLabel} {v ? `(${v.employees} personas, ${v.entries} marcas)` : ''}</span>;
+  const v = c.newValue as { employees?: number; entries?: number; notes?: number } | null;
+  return <span>{c.batchLabel} {v ? `(${v.employees} personas, ${v.entries} marcas${v.notes != null ? `, ${v.notes} notas` : ''})` : ''}</span>;
 }
 
 const fmt = (v: unknown) => (typeof v === 'boolean' ? (v ? 'sí' : 'no') : String(v ?? ''));

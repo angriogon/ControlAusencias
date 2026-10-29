@@ -44,6 +44,22 @@ export interface Entry {
   updatedBy?: string;
 }
 
+/** Nota de una celda (como las notas del Excel). Puede haber nota sin clave. */
+export interface Note {
+  employeeId: string;
+  date: string;
+  text: string;
+  author: string;
+  updatedAt?: string;
+}
+
+/** Cambio de nota: text null o vacío = borrar. */
+export interface NoteChange {
+  employeeId: string;
+  date: string;
+  text: string | null;
+}
+
 /** Cambio solicitado sobre una celda: code null = borrar. */
 export interface CellChange {
   employeeId: string;
@@ -51,7 +67,7 @@ export interface CellChange {
   code: string | null;
 }
 
-export type ChangeEntity = 'entry' | 'employee' | 'code' | 'system';
+export type ChangeEntity = 'entry' | 'note' | 'employee' | 'code' | 'system';
 export type ChangeAction = 'insert' | 'update' | 'delete' | 'restore' | 'import';
 
 /** Registro del historial (quién cambió qué y cuándo). */
@@ -93,6 +109,8 @@ export interface Dataset {
   employees: Employee[];
   codes: Code[];
   entries: Entry[];
+  /** Opcional: las copias antiguas no tienen notas. */
+  notes?: Note[];
 }
 
 export interface AppUser {
@@ -105,6 +123,7 @@ export interface AppUser {
 /** Evento en tiempo real (cambios hechos por otros usuarios u otras pestañas). */
 export type LiveEvent =
   | { type: 'entry'; entry: Entry | null; employeeId: string; date: string }
+  | { type: 'note'; note: Note | null; employeeId: string; date: string }
   | { type: 'employee'; employee: Employee | null; id: string }
   | { type: 'code'; code: Code | null; key: string }
   | { type: 'reload' };
