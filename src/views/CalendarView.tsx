@@ -5,6 +5,7 @@ import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type Code, type Em
 import { useAdmin } from '../components/admin';
 import { MONTHS, dateRange, isWeekend, monthDays, todayIso, parseIso, formatDate } from '../lib/dates';
 import { codeMap } from '../lib/codes';
+import { matches } from '../lib/search';
 import { Grid, type GridRow, type GroupRow } from '../components/Grid';
 import { Modal, useUi } from '../components/ui';
 import { EmployeeCard } from './EmployeeCard';
@@ -45,9 +46,8 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
   const opts = (k: keyof Employee) => [...new Set(active.map((e) => String(e[k] ?? '')).filter(Boolean))].sort();
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
     return active.filter((e) => (!equipo || e.equipo === equipo) && (!zona || e.zona === zona) && (!tl || e.teamLeader === tl)
-      && (!s || [e.nombre, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader].join(' ').toLowerCase().includes(s)));
+      && matches(q, e.nombre, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader));
   }, [active, q, equipo, zona, tl]);
 
   const { rows, ordered } = useMemo(() => {

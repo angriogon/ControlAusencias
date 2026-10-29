@@ -3,6 +3,7 @@ import type { DataStore } from '../data/store';
 import type { AppData } from '../data/useAppData';
 import type { AppUser, Code, Employee } from '../types';
 import { Modal, useUi } from '../components/ui';
+import { matches } from '../lib/search';
 import { AdminGate, useAdmin } from '../components/admin';
 
 const blankEmployee = (orden: number): Employee => ({
@@ -25,7 +26,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
   const canEdit = data.canEdit && user.role !== 'lector' && admin.active;
 
   const list = data.employees.filter((e) => (showInactive || e.activo)
-    && (!q || [e.nombre, e.equipo, e.zona, e.sede].join(' ').toLowerCase().includes(q.toLowerCase())));
+    && matches(q, e.nombre, e.equipo, e.zona, e.sede));
 
   const saveEmp = async (e: Employee) => {
     try {

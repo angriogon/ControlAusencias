@@ -126,3 +126,40 @@ ul.m-card { padding: 0 12px; }
 
 /* El aviso flotante no debe quedar debajo de la barra de pestañas */
 .m-app ~ .toasts, body:has(.m-app) .toasts { bottom: calc(72px + env(safe-area-inset-bottom)); }
+
+/* ---------- Nada puede ensanchar la pantalla del móvil ----------
+   En CSS Grid "1fr" no deja encoger una columna por debajo de su contenido;
+   minmax(0, 1fr) sí. Y los textos largos sin espacios (notas, teléfonos)
+   se parten en lugar de empujar el ancho. */
+.m-main { overflow-x: hidden; }
+.m-page { width: 100%; min-width: 0; }
+.m-page > *, .m-card > *, .m-sheet-body > * { min-width: 0; max-width: 100%; }
+.m-cal { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.m-day { min-width: 0; padding: 1px; }
+.m-day-c { max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; font-size: clamp(9px, 3vw, 12px); }
+.m-filters, .m-codes, .m-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.m-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.m-filters select { min-width: 0; text-overflow: ellipsis; }
+.m-datebar { min-width: 0; }
+.m-date { min-width: 0; }
+.m-name, .m-sub, .m-note-line, .m-person h1, .m-facts dd, .m-card-title, .m-sheet-head strong, .m-code span:last-child {
+  overflow-wrap: anywhere; min-width: 0;
+}
+.m-calls a { max-width: 100%; flex-wrap: wrap; }
+.m-monthbar strong { min-width: 0; text-align: center; }
+.m-sheet-head > div { min-width: 0; }
+.m-code { min-width: 0; }
+@media (max-width: 340px) {
+  .m-page { padding-left: 8px; padding-right: 8px; }
+  .m-icon.big { min-width: 40px; padding: 6px; }
+  .m-codes { grid-template-columns: minmax(0, 1fr); }
+}
+/* Las filas son botones y los botones no parten líneas por defecto (white-space: nowrap):
+   sin esto, una nota larga estiraba toda la pantalla hacia la derecha. */
+.m-list button, .m-card-title, .m-person, .m-sheet-head { white-space: normal; }
+.m-note-line {
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; max-width: 100%; white-space: normal;
+}
+/* El relleno vertical va en el borde: si fuese "padding", asomaría media línea de la 4.ª fila recortada */
+.m-note-line { padding: 0 6px; border-top: 2px solid #fffbea; border-bottom: 2px solid #fffbea; line-height: 1.35; }

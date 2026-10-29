@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppData } from '../data/useAppData';
 import { MONTHS_SHORT } from '../lib/dates';
+import { matches } from '../lib/search';
 
 /** Equivalente a la hoja "Resumen año" y a las columnas de totales del Excel. */
 export function SummaryView({ data }: { data: AppData }) {
@@ -14,7 +15,7 @@ export function SummaryView({ data }: { data: AppData }) {
   const active = useMemo(() => data.employees.filter((e) => e.activo), [data.employees]);
   const equipos = [...new Set(active.map((e) => e.equipo).filter(Boolean))].sort();
   const people = useMemo(
-    () => active.filter((e) => (!equipo || e.equipo === equipo) && (!q || e.nombre.toLowerCase().includes(q.toLowerCase()))),
+    () => active.filter((e) => (!equipo || e.equipo === equipo) && matches(q, e.nombre)),
     [active, equipo, q],
   );
   const absenceCodes = useMemo(() => new Set(data.codes.filter((c) => c.category === 'ausencia').map((c) => c.code)), [data.codes]);
