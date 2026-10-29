@@ -142,12 +142,14 @@ export function CalendarView({ data, onEditEmployee }: { data: AppData; onEditEm
             rows={rows}
             employees={ordered}
             entries={data.entries}
+            notes={data.notes}
             codes={data.codes}
             codeByKey={codeByKey}
             flash={data.flash}
             canEdit={data.canEdit}
             vacLeft={vacLeft}
             onApply={data.apply}
+            onSaveNote={data.saveNote}
             onOpenEmployee={setCard}
           />
         )}

@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataStore } from './store';
-import type { CellChange, Code, Employee, Entry, LiveEvent } from '../types';
+import type { CellChange, Code, Employee, Entry, LiveEvent, Note, NoteChange } from '../types';
 
 export const entryKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
 
 export type SyncStatus = 'saved' | 'saving' | 'error' | 'offline';
 
-interface UndoItem { label: string; inverse: CellChange[]; applied: CellChange[]; batchId: string | null }
+interface UndoItem {
+  label: string;
+  batchId: string | null;
+  inverse: CellChange[];
+  applied: CellChange[];
+  notesInverse?: NoteChange[];
+  notesApplied?: NoteChange[];
+}
 
 /**
  * Estado central de la app: personas, claves y marcas, sincronizado con el
@@ -17,6 +24,7 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [codes, setCodes] = useState<Code[]>([]);
   const [entries, setEntries] = useState<Map<string, Entry>>(new Map());
+  const [notes, setNotes] = useState<Map<string, Note>>(new Map());
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -27,16 +35,27 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
   const [undoSize, setUndoSize] = useState(0);
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
 
   const loadYear = useCallback(async (y: number, force = false) => {
     if (!force && loadedYears.current.has(y)) return;
     loadedYears.current.add(y);
     try {
-      const list = await store.loadEntries(`${y}-01-01`, `${y}-12-31`);
+      const [list, noteList] = await Promise.all([
+        store.loadEntries(`${y}-01-01`, `${y}-12-31`),
+        store.loadNotes(`${y}-01-01`, `${y}-12-31`),
+      ]);
       setEntries((prev) => {
         const next = new Map(prev);
         for (const k of next.keys()) if (k.slice(-10, -6) === String(y)) next.delete(k);
         for (const e of list) next.set(entryKey(e.employeeId, e.date), e);
+        return next;
+      });
+      setNotes((prev) => {
+        const next = new Map(prev);
+        for (const k of next.keys()) if (k.slice(-10, -6) === String(y)) next.delete(k);
+        for (const n of noteList) next.set(entryKey(n.employeeId, n.date), n);
         return next;
       });
     } catch (e) {
@@ -65,6 +84,7 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
       setLoading(true);
       loadedYears.current.clear();
       setEntries(new Map());
+      setNotes(new Map());
       await reloadAll();
       await loadYear(new Date().getFullYear());
       if (!cancelled) setLoading(false);
@@ -102,6 +122,13 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
       if (!changed) return; // eco de un cambio mío: no resaltar
       setFlash((prev) => new Map(prev).set(k, Date.now()));
       setTimeout(() => setFlash((prev) => { const n = new Map(prev); n.delete(k); return n; }), 2500);
+    } else if (ev.type === 'note') {
+      const k = entryKey(ev.employeeId, ev.date);
+      setNotes((prev) => {
+        const next = new Map(prev);
+        if (ev.note) next.set(k, ev.note); else next.delete(k);
+        return next;
+      });
     } else if (ev.type === 'employee') {
       setEmployees((prev) => {
         const rest = prev.filter((e) => e.id !== ev.id);
@@ -157,20 +184,61 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
     }
   }, [store, canEdit, onError]);
 
+  const applyNotesLocal = (list: NoteChange[], author: string) => setNotes((prev) => {
+    const next = new Map(prev);
+    for (const c of list) {
+      const k = entryKey(c.employeeId, c.date);
+      if (c.text?.trim()) next.set(k, { employeeId: c.employeeId, date: c.date, text: c.text, author, updatedAt: new Date().toISOString() });
+      else next.delete(k);
+    }
+    return next;
+  });
+
+  /** Guarda o borra (text vacío) la nota de una celda. */
+  const saveNote = useCallback(async (employeeId: string, date: string, text: string, label: string) => {
+    const k = entryKey(employeeId, date);
+    const prevNote = notesRef.current.get(k);
+    const clean = text.trim() ? text.trim() : null;
+    if ((prevNote?.text ?? null) === clean) return true;
+    if (!canEdit) { onError('Sin conexión: no se pueden guardar cambios ahora mismo.'); return false; }
+    const applied: NoteChange[] = [{ employeeId, date, text: clean }];
+    const inverse: NoteChange[] = [{ employeeId, date, text: prevNote?.text ?? null }];
+    applyNotesLocal(applied, 'tú');
+    setPending((n) => n + 1);
+    try {
+      const batchId = await store.applyNotes(applied, label);
+      setFailed(false);
+      undoStack.current.push({ label, batchId, inverse: [], applied: [], notesInverse: inverse, notesApplied: applied });
+      if (undoStack.current.length > 50) undoStack.current.shift();
+      setUndoSize(undoStack.current.length);
+      return true;
+    } catch (e) {
+      if (prevNote) setNotes((p) => new Map(p).set(k, prevNote)); else applyNotesLocal(inverse, '');
+      setFailed(true);
+      onError(`No se ha guardado la nota: ${(e as Error).message}`);
+      return false;
+    } finally {
+      setPending((n) => n - 1);
+    }
+  }, [store, canEdit, onError]);
+
   /** Deshace mi último cambio. Devuelve la descripción o null. */
   const undo = useCallback(async (confirmOverwrite: (n: number) => Promise<boolean>) => {
     const item = undoStack.current.pop();
     setUndoSize(undoStack.current.length);
     if (!item) return null;
     const cur = entriesRef.current;
-    const touched = item.applied.filter((c) => (cur.get(entryKey(c.employeeId, c.date))?.code ?? null) !== c.code).length;
+    const curNotes = notesRef.current;
+    const touched = item.applied.filter((c) => (cur.get(entryKey(c.employeeId, c.date))?.code ?? null) !== c.code).length
+      + (item.notesApplied ?? []).filter((c) => (curNotes.get(entryKey(c.employeeId, c.date))?.text ?? null) !== (c.text ?? null)).length;
     if (touched && !(await confirmOverwrite(touched))) {
       undoStack.current.push(item);
       setUndoSize(undoStack.current.length);
       return null;
     }
     if (!item.batchId) {
-      await apply(item.inverse, `Deshacer: ${item.label}`, { undoable: false });
+      if (item.notesInverse?.length) await store.applyNotes(item.notesInverse, `Deshacer: ${item.label}`).then(() => applyNotesLocal(item.notesInverse!, 'tú'));
+      if (item.inverse.length) await apply(item.inverse, `Deshacer: ${item.label}`, { undoable: false });
       return item.label;
     }
     // Se deshace a través del historial para que el cambio original quede marcado como "deshecho".
@@ -189,6 +257,7 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
       }
       return next;
     });
+    if (item.notesInverse?.length) applyNotesLocal(item.notesInverse, 'tú');
     return item.label;
   }, [apply, store, onError]);
 
@@ -198,6 +267,7 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
     employees: sortedEmployees,
     codes: sortedCodes,
     entries,
+    notes,
     loading,
     status,
     canEdit,
@@ -206,6 +276,7 @@ export function useAppData(store: DataStore, onError: (msg: string) => void) {
     loadYear,
     reloadAll,
     apply,
+    saveNote,
     undo,
     setEmployees,
     setCodes,

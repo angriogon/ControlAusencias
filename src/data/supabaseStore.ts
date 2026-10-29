@@ -3,7 +3,7 @@ import type { DataStore } from './store';
 import {
   ConflictError,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
-  type Employee, type Entry, type LiveEvent, type SnapshotInfo,
+  type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
 } from '../types';
 
 // ---------- conversión filas SQL (snake_case) <-> app (camelCase) ----------
@@ -56,6 +56,14 @@ const entryFromRow = (r: Row): Entry => ({
   code: r.code as string,
   updatedAt: r.updated_at as string | undefined,
   updatedBy: r.updated_by as string | undefined,
+});
+
+const noteFromRow = (r: Row): Note => ({
+  employeeId: r.employee_id as string,
+  date: r.day as string,
+  text: (r.text as string) ?? '',
+  author: (r.author as string) ?? '',
+  updatedAt: r.updated_at as string | undefined,
 });
 
 const logFromRow = (r: Row): ChangeLog => {
@@ -164,6 +172,11 @@ export class SupabaseStore implements DataStore {
     return rows.map(entryFromRow);
   }
 
+  async loadNotes(from: string, to: string) {
+    const rows = await this.all('notes', (q) => q.gte('day', from).lte('day', to).order('day').order('employee_id'));
+    return rows.map(noteFromRow);
+  }
+
   // ---------- escritura ----------
   async applyChanges(changes: CellChange[], label: string) {
     // Lotes de 2000 celdas para no superar el tamaño de petición.
@@ -176,6 +189,15 @@ export class SupabaseStore implements DataStore {
       batch = (data as string) ?? null;
     }
     return changes.length > 2000 ? null : batch;
+  }
+
+  async applyNotes(changes: NoteChange[], label: string) {
+    const { data, error } = await this.sb.rpc('apply_notes', {
+      p_changes: changes.map((c) => ({ employee_id: c.employeeId, day: c.date, text: c.text })),
+      p_label: label,
+    });
+    fail(error);
+    return (data as string) ?? null;
   }
 
   async saveEmployee(e: Employee) {
@@ -246,11 +268,12 @@ export class SupabaseStore implements DataStore {
   async getSnapshot(id: number): Promise<Dataset> {
     const { data, error } = await this.sb.from('snapshots').select('data').eq('id', id).single();
     fail(error);
-    const d = data!.data as { employees: Row[]; codes: Row[]; entries: Row[] };
+    const d = data!.data as { employees: Row[]; codes: Row[]; entries: Row[]; notes?: Row[] };
     return {
       employees: d.employees.map(empFromRow),
       codes: d.codes.map(codeFromRow),
       entries: d.entries.map(entryFromRow),
+      notes: (d.notes ?? []).map(noteFromRow),
     };
   }
 
@@ -265,6 +288,7 @@ export class SupabaseStore implements DataStore {
         employees: d.employees.map(empToRow),
         codes: d.codes.map(codeToRow),
         entries: d.entries.map((e) => ({ employee_id: e.employeeId, day: e.date, code: e.code })),
+        notes: (d.notes ?? []).map((n) => ({ employee_id: n.employeeId, day: n.date, text: n.text, author: n.author })),
       },
       p_label: label,
       p_action: 'import',
@@ -281,6 +305,15 @@ export class SupabaseStore implements DataStore {
         cb({
           type: 'entry',
           entry: p.eventType === 'DELETE' ? null : entryFromRow(row),
+          employeeId: row.employee_id as string,
+          date: row.day as string,
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, (p) => {
+        const row = (p.eventType === 'DELETE' ? p.old : p.new) as Row;
+        cb({
+          type: 'note',
+          note: p.eventType === 'DELETE' ? null : noteFromRow(row),
           employeeId: row.employee_id as string,
           date: row.day as string,
         });

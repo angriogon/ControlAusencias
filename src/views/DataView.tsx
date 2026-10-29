@@ -65,7 +65,7 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
     for (let y = Number(expFrom.slice(0, 4)); y <= Number(expTo.slice(0, 4)); y++) years.add(y);
     await Promise.all([...years].map((y) => data.loadYear(y)));
     await exportToExcel(
-      { employees: data.employees, codes: data.codes, entries: [...data.entries.values()] },
+      { employees: data.employees, codes: data.codes, entries: [...data.entries.values()], notes: [...data.notes.values()] },
       expFrom, expTo, `Control Ausencias ${formatDate(expFrom).replace(/\//g, '-')} a ${formatDate(expTo).replace(/\//g, '-')}.xlsx`,
     );
   });
@@ -165,6 +165,7 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
           <div className="stats">
             <div className="stat"><b>{preview.stats.employees}</b><span>personas</span></div>
             <div className="stat"><b>{preview.stats.entries}</b><span>marcas</span></div>
+            <div className="stat"><b>{preview.stats.notes}</b><span>notas</span></div>
             <div className="stat"><b>{preview.stats.from ? formatDate(preview.stats.from) : '-'}</b><span>desde</span></div>
             <div className="stat"><b>{preview.stats.to ? formatDate(preview.stats.to) : '-'}</b><span>hasta</span></div>
           </div>
@@ -177,12 +178,13 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
           )}
           <h3>Primeras personas</h3>
           <table className="table small">
-            <thead><tr><th>Nombre</th><th>Equipo</th><th>Zona</th><th>Sede</th><th>Vac. año</th><th>Marcas</th></tr></thead>
+            <thead><tr><th>Nombre</th><th>Equipo</th><th>Zona</th><th>Sede</th><th>Vac. año</th><th>Marcas</th><th>Notas</th></tr></thead>
             <tbody>
               {preview.dataset.employees.slice(0, 8).map((e) => (
                 <tr key={e.id}>
                   <td>{e.nombre}</td><td>{e.equipo}</td><td>{e.zona}</td><td>{e.sede}</td><td>{e.diasVacaciones}</td>
                   <td>{preview.dataset.entries.filter((x) => x.employeeId === e.id).length}</td>
+                  <td>{(preview.dataset.notes ?? []).filter((x) => x.employeeId === e.id).length}</td>
                 </tr>
               ))}
             </tbody>

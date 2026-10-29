@@ -1,5 +1,5 @@
 import { unzipSync, strFromU8 } from 'fflate';
-import type { Code, Dataset, Employee, Entry } from '../types';
+import type { Code, Dataset, Employee, Entry, Note } from '../types';
 import { DEFAULT_CODES, normalizeCode } from './codes';
 import { MONTHS_SHORT, WEEKDAY_LETTER, iso, weekday, daysInMonth } from './dates';
 
@@ -16,6 +16,8 @@ import { MONTHS_SHORT, WEEKDAY_LETTER, iso, weekday, daysInMonth } from './dates
 
 interface Cell { v: string; f?: string }
 type Grid = Map<number, Map<number, Cell>>;
+interface Comment { text: string; author: string }
+type Comments = Map<number, Map<number, Comment>>;
 
 export interface ImportResult {
   dataset: Dataset;
@@ -28,6 +30,7 @@ export interface ImportResult {
     sheet: string;
     unknownCodes: Record<string, number>;
     normalized: number;
+    notes: number;
   };
 }
 
@@ -45,7 +48,37 @@ function colIndex(letters: string): number {
   return n;
 }
 
-function readSheet(files: Record<string, Uint8Array>, wanted: RegExp): { name: string; grid: Grid } {
+/**
+ * Notas de Excel (las "notas" amarillas y también los comentarios modernos,
+ * que Excel guarda además en este mismo formato). Casi todas empiezan por
+ * "NOMBRE DEL AUTOR:\n": ese nombre se usa como autor y se quita del texto.
+ */
+function readComments(files: Record<string, Uint8Array>, sheetPath: string): Comments {
+  const out: Comments = new Map();
+  const relsPath = sheetPath.replace(/([^/]+)$/, '_rels/$1.rels');
+  const rels = files[relsPath] ? strFromU8(files[relsPath]) : '';
+  const rel = [...rels.matchAll(/<Relationship\b[^>]*>/g)].map((m) => m[0]).find((r) => /Type="[^"]*\/comments"/.test(r));
+  const target = rel?.match(/Target="([^"]+)"/)?.[1];
+  if (!target) return out;
+  const base = sheetPath.replace(/[^/]+$/, '');
+  const path = target.startsWith('/') ? target.slice(1) : new URL(target, `http://x/${base}`).pathname.slice(1);
+  const xml = files[path] ? strFromU8(files[path]) : '';
+  const authors = [...(xml.match(/<authors>([\s\S]*?)<\/authors>/)?.[1] ?? '').matchAll(/<author>([\s\S]*?)<\/author>/g)].map((m) => decode(m[1]));
+  for (const m of xml.matchAll(/<comment\b[^>]*ref="([A-Z]+)(\d+)"[^>]*?(?:authorId="(\d+)")?[^>]*>([\s\S]*?)<\/comment>/g)) {
+    let text = textOf(m[4]).replace(/\r\n?/g, '\n');
+    let author = authors[Number(m[3] ?? -1)] ?? '';
+    const pre = text.match(/^([^:\n]{2,60}):[ \t]*\n/);
+    if (pre) { author = pre[1].trim(); text = text.slice(pre[0].length); }
+    text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (!text) continue;
+    const row = Number(m[2]);
+    if (!out.has(row)) out.set(row, new Map());
+    out.get(row)!.set(colIndex(m[1]), { text, author });
+  }
+  return out;
+}
+
+function readSheet(files: Record<string, Uint8Array>, wanted: RegExp): { name: string; grid: Grid; comments: Comments } {
   const wb = strFromU8(files['xl/workbook.xml']);
   const rels = strFromU8(files['xl/_rels/workbook.xml.rels']);
   const sheets = [...wb.matchAll(/<sheet\b[^>]*?name="([^"]*)"[^>]*?r:id="([^"]*)"/g)].map((m) => ({ name: decode(m[1]), rid: m[2] }));
@@ -81,7 +114,7 @@ function readSheet(files: Record<string, Uint8Array>, wanted: RegExp): { name: s
     if (!grid.has(row)) grid.set(row, new Map());
     grid.get(row)!.set(col, { v: v ?? '', f: f ? decode(f) : undefined });
   }
-  return { name: sheet.name, grid };
+  return { name: sheet.name, grid, comments: readComments(files, target) };
 }
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -111,7 +144,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
   } catch {
     throw new Error('No parece un archivo Excel válido (.xlsx o .xlsm). Si es .xls antiguo, guárdalo antes como .xlsx.');
   }
-  const { name: sheetName, grid } = readSheet(files, /ausencia/i);
+  const { name: sheetName, grid, comments } = readSheet(files, /ausencia/i);
   const warnings: string[] = [];
   const get = (r: number, c: number) => clean(grid.get(r)?.get(c)?.v);
 
@@ -187,6 +220,10 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
   let normalized = 0;
   const employees: Employee[] = [];
   const entryMap = new Map<string, Entry>();
+  const noteMap = new Map<string, Note>();
+  const usedCommentRows = new Set<number>();
+  let notesInInfo = 0;
+  let mergedNotes = 0;
   let duplicateConflicts = 0;
   const seenDates = new Map<string, number>();
   for (const [, d] of colDate) seenDates.set(d, (seenDates.get(d) ?? 0) + 1);
@@ -230,6 +267,26 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
     };
     employees.push(emp);
 
+    // Notas de esta fila: las de días van a la celda; el resto, a la ficha.
+    for (const [c, cm] of comments.get(r) ?? []) {
+      const date = colDate.get(c);
+      if (!date) {
+        emp.notas = [emp.notas, `Nota del Excel: ${cm.text}${cm.author ? ` (${cm.author})` : ''}`].filter(Boolean).join('\n');
+        notesInInfo++;
+        continue;
+      }
+      const key = `${emp.id}|${date}`;
+      const prev = noteMap.get(key);
+      if (prev && prev.text !== cm.text) {
+        // Fecha duplicada en el Excel con notas distintas: se conservan las dos
+        prev.text = `${prev.text}\n— ${cm.text}`;
+        mergedNotes++;
+      } else if (!prev) {
+        noteMap.set(key, { employeeId: emp.id, date, text: cm.text, author: cm.author });
+      }
+    }
+    usedCommentRows.add(r);
+
     for (const [c, date] of colDate) {
       const raw = get(r, c);
       if (!raw) continue;
@@ -252,6 +309,11 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
     }
   }
   const entries = [...entryMap.values()];
+  const notes = [...noteMap.values()];
+  const lostNotes = [...comments.entries()].filter(([row]) => !usedCommentRows.has(row)).reduce((n, [, m]) => n + m.size, 0);
+  if (notesInInfo) warnings.push(`${notesInInfo} nota(s) no estaban en un día concreto: se han añadido a las notas de la ficha de cada persona.`);
+  if (mergedNotes) warnings.push(`${mergedNotes} nota(s) estaban en días repetidos con texto distinto: se han unido en una sola nota.`);
+  if (lostNotes) warnings.push(`${lostNotes} nota(s) están fuera de las filas de personas (cabeceras o leyenda) y no se importan.`);
   if (dupDates.length) {
     warnings.push(`El Excel tiene fechas repetidas en varias columnas (${dupDates.length} días, del ${dupDates[0]} al ${dupDates[dupDates.length - 1]}). Se han unificado${duplicateConflicts ? `; en ${duplicateConflicts} caso(s) había valores distintos y se ha quedado el de la columna más a la derecha` : ''}.`);
   }
@@ -263,7 +325,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
 
   const dates = [...colDate.values()].sort();
   return {
-    dataset: { employees, codes, entries },
+    dataset: { employees, codes, entries, notes },
     warnings,
     stats: {
       employees: employees.length,
@@ -273,6 +335,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
       sheet: sheetName,
       unknownCodes: unknown,
       normalized,
+      notes: notes.length,
     },
   };
 }

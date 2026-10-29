@@ -2,7 +2,7 @@ import type { DataStore } from './store';
 import {
   ConflictError,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
-  type Employee, type Entry, type LiveEvent, type SnapshotInfo,
+  type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
 } from '../types';
 import { demoDataset } from './demo';
 import { idbGet, idbSet, idbDel } from './idb';
@@ -15,6 +15,7 @@ interface State {
   employees: Map<string, Employee>;
   codes: Map<string, Code>;
   entries: Map<string, Entry>;
+  notes: Map<string, Note>;
   changes: ChangeLog[];
   seq: number;
   snapshots: SnapshotInfo[];
@@ -22,6 +23,7 @@ interface State {
 
 type Op =
   | { kind: 'entry'; employeeId: string; date: string; code: string | null }
+  | { kind: 'note'; employeeId: string; date: string; text: string | null }
   | { kind: 'employee'; id: string; value: Employee | null }
   | { kind: 'code'; key: string; value: Code | null };
 
@@ -53,6 +55,7 @@ export class LocalStore implements DataStore {
         employees: new Map(demo.employees.map((e) => [e.id, e])),
         codes: new Map(demo.codes.map((c) => [c.code, c])),
         entries: new Map(demo.entries.map((e) => [ek(e.employeeId, e.date), e])),
+        notes: new Map(),
         changes: [],
         seq: 1,
         snapshots: [],
@@ -65,6 +68,7 @@ export class LocalStore implements DataStore {
       employees: new Map(employees.map((e) => [e.id, e])),
       codes: new Map(((await idbGet<Code[]>('codes')) ?? []).map((c) => [c.code, c])),
       entries: new Map(((await idbGet<Entry[]>('entries')) ?? []).map((e) => [ek(e.employeeId, e.date), e])),
+      notes: new Map(((await idbGet<Note[]>('notes')) ?? []).map((n) => [ek(n.employeeId, n.date), n])),
       changes: (await idbGet<ChangeLog[]>('changes')) ?? [],
       seq: (await idbGet<number>('seq')) ?? 1,
       snapshots: (await idbGet<SnapshotInfo[]>('snapshots')) ?? [],
@@ -77,6 +81,7 @@ export class LocalStore implements DataStore {
       idbSet('employees', [...s.employees.values()]),
       idbSet('codes', [...s.codes.values()]),
       idbSet('entries', [...s.entries.values()]),
+      idbSet('notes', [...s.notes.values()]),
       idbSet('changes', s.changes),
       idbSet('seq', s.seq),
       idbSet('snapshots', s.snapshots),
@@ -112,11 +117,16 @@ export class LocalStore implements DataStore {
     await this.ready;
     return [...this.state.entries.values()].filter((e) => e.date >= from && e.date <= to);
   }
+  async loadNotes(from: string, to: string) {
+    await this.ready;
+    return [...this.state.notes.values()].filter((n) => n.date >= from && n.date <= to);
+  }
 
   // ---------- núcleo de escritura con historial ----------
   private currentValue(op: Op): unknown {
     const s = this.state;
     if (op.kind === 'entry') return s.entries.get(ek(op.employeeId, op.date))?.code ?? null;
+    if (op.kind === 'note') return s.notes.get(ek(op.employeeId, op.date))?.text ?? null;
     if (op.kind === 'employee') return s.employees.get(op.id) ?? null;
     return s.codes.get(op.key) ?? null;
   }
@@ -135,6 +145,13 @@ export class LocalStore implements DataStore {
         if (op.code) s.entries.set(key, { employeeId: op.employeeId, date: op.date, code: op.code, updatedAt: ts, updatedBy: user });
         else s.entries.delete(key);
         s.changes.push(this.log(ts, user, 'entry', oldValue, op.code, op.employeeId, op.date, batchId, label, revertOf));
+      } else if (op.kind === 'note') {
+        const text = op.text?.trim() ? op.text : null;
+        if (same(oldValue, text)) continue;
+        const key = ek(op.employeeId, op.date);
+        if (text) s.notes.set(key, { employeeId: op.employeeId, date: op.date, text, author: user, updatedAt: ts });
+        else s.notes.delete(key);
+        s.changes.push(this.log(ts, user, 'note', oldValue, text, op.employeeId, op.date, batchId, label, revertOf));
       } else if (op.kind === 'employee') {
         if (same(oldValue, op.value)) continue;
         if (op.value) s.employees.set(op.id, op.value);
@@ -166,6 +183,10 @@ export class LocalStore implements DataStore {
     return this.write(changes.map((c) => ({ kind: 'entry' as const, ...c })), label);
   }
 
+  async applyNotes(changes: NoteChange[], label: string) {
+    return this.write(changes.map((c) => ({ kind: 'note' as const, ...c })), label);
+  }
+
   async saveEmployee(e: Employee) {
     await this.write([{ kind: 'employee', id: e.id, value: e }], this.state.employees.has(e.id) ? `Edita ficha de ${e.nombre}` : `Alta de ${e.nombre}`);
     return e;
@@ -181,6 +202,9 @@ export class LocalStore implements DataStore {
     const ops: Op[] = [...this.state.entries.values()]
       .filter((x) => x.employeeId === id)
       .map((x) => ({ kind: 'entry', employeeId: id, date: x.date, code: null }));
+    for (const n of this.state.notes.values()) {
+      if (n.employeeId === id) ops.push({ kind: 'note', employeeId: id, date: n.date, text: null });
+    }
     ops.push({ kind: 'employee', id, value: null });
     await this.write(ops, `Elimina a ${emp?.nombre ?? 'persona'}`);
   }
@@ -203,6 +227,7 @@ export class LocalStore implements DataStore {
 
   private inverse(c: ChangeLog): Op {
     if (c.entity === 'entry') return { kind: 'entry', employeeId: c.employeeId!, date: c.date!, code: (c.oldValue as string) ?? null };
+    if (c.entity === 'note') return { kind: 'note', employeeId: c.employeeId!, date: c.date!, text: (c.oldValue as string) ?? null };
     if (c.entity === 'employee') return { kind: 'employee', id: c.employeeId!, value: (c.oldValue as Employee) ?? null };
     const key = ((c.oldValue ?? c.newValue) as Code).code;
     return { kind: 'code', key, value: (c.oldValue as Code) ?? null };
@@ -241,7 +266,10 @@ export class LocalStore implements DataStore {
   // ---------- copias de seguridad ----------
   private dataset(): Dataset {
     const s = this.state;
-    return { employees: [...s.employees.values()], codes: [...s.codes.values()], entries: [...s.entries.values()] };
+    return {
+      employees: [...s.employees.values()], codes: [...s.codes.values()],
+      entries: [...s.entries.values()], notes: [...s.notes.values()],
+    };
   }
 
   async listSnapshots() {
@@ -278,6 +306,7 @@ export class LocalStore implements DataStore {
     s.employees = new Map(d.employees.map((e) => [e.id, e]));
     s.codes = new Map(d.codes.map((c) => [c.code, c]));
     s.entries = new Map(d.entries.map((e) => [ek(e.employeeId, e.date), e]));
+    s.notes = new Map((d.notes ?? []).map((n) => [ek(n.employeeId, n.date), n]));
     s.changes.push({
       id: s.seq++, ts: new Date().toISOString(), userName: this.userName(), entity: 'system', action,
       employeeId: null, date: null, oldValue: null, newValue: { employees: d.employees.length, entries: d.entries.length },
