@@ -128,6 +128,35 @@ export type LiveEvent =
   | { type: 'code'; code: Code | null; key: string }
   | { type: 'reload' };
 
+/** Compañero conectado y la celda en la que está (si está en el calendario). */
+export interface PresenceUser {
+  key: string;
+  name: string;
+  color: string;
+  cell: { employeeId: string; date: string } | null;
+}
+
+export interface AdminStatus {
+  /** ¿Existe ya una contraseña de administrador? */
+  configured: boolean;
+  /** Hasta cuándo está activo el modo admin para mí (ISO), o null. */
+  until: string | null;
+  /** ¿Puedo crear/cambiar la contraseña? (rol admin en Supabase) */
+  canManage: boolean;
+}
+
+/** Claves que nunca se pisan en cambios de varias celdas o periodos. */
+export const PROTECTED_CODES = ['FN', 'FL', 'F'];
+/** A partir de cuántas personas un cambio se considera masivo (requiere modo admin). */
+export const MASS_PEOPLE_LIMIT = 5;
+
+export class AdminRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AdminRequiredError';
+  }
+}
+
 export class ConflictError extends Error {
   constructor(message: string) {
     super(message);

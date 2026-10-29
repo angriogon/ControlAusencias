@@ -1,7 +1,9 @@
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
 import type { DataStore } from './store';
+import { colorForName } from '../lib/colors';
 import {
-  ConflictError,
+  AdminRequiredError, ConflictError,
+  type AdminStatus, type PresenceUser,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
   type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
 } from '../types';
@@ -95,6 +97,7 @@ function fail(error: { message: string } | null) {
   if (!error) return;
   const msg = error.message ?? 'Error desconocido';
   if (msg.includes('CONFLICT:')) throw new ConflictError(msg.split('CONFLICT:')[1].trim());
+  if (msg.includes('ADMIN_REQUIRED:')) throw new AdminRequiredError(msg.split('ADMIN_REQUIRED:')[1].trim());
   throw new Error(msg);
 }
 
@@ -336,17 +339,63 @@ export class SupabaseStore implements DataStore {
     return () => { this.sb.removeChannel(ch); };
   }
 
-  onPresence(cb: (names: string[]) => void) {
-    const me = this.user?.name ?? 'Anónimo';
-    const ch = this.sb.channel('conectados', { config: { presence: { key: crypto.randomUUID() } } });
+  // ---------- presencia: quién está conectado y en qué celda ----------
+  private presenceKey = crypto.randomUUID();
+  private cursor: { employeeId: string; date: string } | null = null;
+  private cursorTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private presencePayload() {
+    const name = this.user?.name ?? 'Anónimo';
+    return { name, color: colorForName(name), cell: this.cursor };
+  }
+
+  onPresence(cb: (users: PresenceUser[]) => void) {
+    const ch = this.sb.channel('conectados', { config: { presence: { key: this.presenceKey } } });
     ch.on('presence', { event: 'sync' }, () => {
-      const state = ch.presenceState<{ name: string }>();
-      const names = Object.values(state).flat().map((x) => x.name);
-      cb([...new Set(names)].sort());
+      const state = ch.presenceState<{ name: string; color: string; cell: PresenceUser['cell'] }>();
+      const users: PresenceUser[] = Object.entries(state).map(([key, metas]) => {
+        const m = metas[metas.length - 1];
+        return { key, name: m.name, color: m.color ?? colorForName(m.name), cell: m.cell ?? null };
+      });
+      cb(users.map((u) => ({ ...u, key: u.key === this.presenceKey ? 'me' : u.key })));
     }).subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') await ch.track({ name: me });
+      if (status === 'SUBSCRIBED') await ch.track(this.presencePayload());
     });
     this.presence = ch;
-    return () => { this.sb.removeChannel(ch); };
+    return () => { this.sb.removeChannel(ch); this.presence = null; };
+  }
+
+  setCursor(cell: { employeeId: string; date: string } | null) {
+    this.cursor = cell;
+    // Como mucho un envío cada 150 ms al moverse rápido con las flechas
+    if (this.cursorTimer) return;
+    this.cursorTimer = setTimeout(() => {
+      this.cursorTimer = null;
+      this.presence?.track(this.presencePayload());
+    }, 150);
+  }
+
+  // ---------- modo administrador ----------
+  async adminStatus(): Promise<AdminStatus> {
+    const { data, error } = await this.sb.rpc('admin_status');
+    fail(error);
+    const d = (data ?? {}) as { configured?: boolean; until?: string | null; canManage?: boolean };
+    return { configured: !!d.configured, until: d.until ?? null, canManage: !!d.canManage };
+  }
+
+  async adminUnlock(password: string) {
+    const { data, error } = await this.sb.rpc('admin_unlock', { p_password: password });
+    fail(error);
+    return (data as string) ?? null;
+  }
+
+  async adminLock() {
+    const { error } = await this.sb.rpc('admin_lock');
+    fail(error);
+  }
+
+  async setAdminPassword(current: string | null, next: string) {
+    const { error } = await this.sb.rpc('set_admin_password', { p_current: current, p_new: next });
+    fail(error);
   }
 }

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DataStore } from './data/store';
 import { createStore } from './data';
 import { useAppData } from './data/useAppData';
-import type { AppUser, Employee } from './types';
+import type { AppUser, Employee, PresenceUser } from './types';
+import { AdminProvider, useAdmin, hhmm } from './components/admin';
+import { initials } from './lib/colors';
 import { UiProvider, useUi } from './components/ui';
 import { CalendarView } from './views/CalendarView';
 import { HistoryView } from './views/HistoryView';
@@ -34,15 +36,21 @@ function AuthGate({ store }: { store: DataStore }) {
   useEffect(() => { store.currentUser().then(setUser).catch(() => setUser(null)); }, [store]);
   if (user === undefined) return <div className="splash">Cargando…</div>;
   if (!user) return <Login store={store} onLogin={setUser} />;
-  return <Main store={store} user={user} onLogout={async () => { await store.signOut(); setUser(null); }} />;
+  return (
+    <AdminProvider store={store}>
+      <Main store={store} user={user} onLogout={async () => { await store.signOut(); setUser(null); }} />
+    </AdminProvider>
+  );
 }
 
 function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLogout: () => void }) {
   const { toast, confirm } = useUi();
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem('ca-tab') as Tab) || 'calendar');
   const [editing, setEditing] = useState<Employee | null>(null);
-  const [online, setOnline] = useState<string[]>([]);
-  const onError = useCallback((m: string) => toast(m, 'error'), [toast]);
+  const [online, setOnline] = useState<PresenceUser[]>([]);
+  const admin = useAdmin();
+  const onError = useCallback((m: string) => toast(m, 'error',
+    m.includes('modo administrador') ? { label: 'Activar modo admin', run: () => { admin.requestAdmin(); } } : undefined), [toast, admin]);
   const data = useAppData(store, onError);
   const readOnly = user.role === 'lector';
   const effective = useMemo(() => ({
@@ -89,6 +97,8 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     } catch (err) { toast((err as Error).message, 'error'); }
   };
 
+  const others = useMemo(() => online.filter((u) => u.key !== 'me'), [online]);
+
   const statusText = {
     saved: '✓ Todo guardado',
     saving: '⟳ Guardando…',
@@ -108,11 +118,18 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         <div className="topbar-right">
           <button className="undo-btn" onClick={undo} disabled={!data.undoSize} title="Deshacer mi último cambio (Ctrl+Z)">↶ Deshacer</button>
           <span className={`status ${data.status}`} title="Los cambios se guardan solos al momento">{statusText}</span>
-          {online.length > 1 && (
-            <span className="presence" title={`Conectados ahora:\n${online.join('\n')}`}>
-              {online.slice(0, 4).map((n) => <span key={n} className="avatar">{n.split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase()}</span>)}
-              {online.length > 4 && <span className="avatar more">+{online.length - 4}</span>}
+          {others.length > 0 && (
+            <span className="presence" title={`También conectados ahora:\n${others.map((u) => u.name).join('\n')}`}>
+              {others.slice(0, 5).map((u) => <span key={u.key} className="avatar" style={{ background: u.color }}>{initials(u.name)}</span>)}
+              {others.length > 5 && <span className="avatar more">+{others.length - 5}</span>}
             </span>
+          )}
+          {admin.active ? (
+            <button className="admin-btn on" onClick={admin.lock} title="Pulsa para salir del modo administrador">
+              🔓 Admin hasta {hhmm(admin.status.until!)}
+            </button>
+          ) : (
+            !readOnly && <button className="admin-btn" onClick={() => admin.requestAdmin()} title="Activar el modo administrador">🔒 Admin</button>
           )}
           <span className="user" title={`${user.email}\nRol: ${user.role}`}>{user.name}</span>
           <button className="link" onClick={onLogout}>Salir</button>
@@ -130,7 +147,14 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
       <main>
         {data.loading ? <div className="splash">Cargando datos…</div> : (
           <>
-            {tab === 'calendar' && <CalendarView data={effective} onEditEmployee={setEditing} />}
+            {tab === 'calendar' && (
+              <CalendarView
+                data={effective}
+                presence={others}
+                onCursor={(c) => store.setCursor?.(c)}
+                onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }}
+              />
+            )}
             {tab === 'summary' && <SummaryView data={effective} />}
             {tab === 'history' && <HistoryView store={store} data={effective} />}
             {tab === 'data' && <DataView store={store} data={effective} user={user} />}
@@ -139,7 +163,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         )}
       </main>
 
-      {editing && tab !== 'settings' && (
+      {editing && tab !== 'settings' && admin.active && (
         <EmployeeForm initial={editing} isNew={false} onClose={() => setEditing(null)} onSave={saveEditing} />
       )}
     </div>

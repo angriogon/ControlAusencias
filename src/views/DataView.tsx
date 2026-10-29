@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from '../lib/dates';
 import { parseWorkbook, type ImportResult } from '../lib/excelImport';
 import { exportToExcel } from '../lib/excelExport';
 import { Modal, useUi, Empty } from '../components/ui';
+import { AdminGate, useAdmin } from '../components/admin';
 
 /** Copias de seguridad, exportar a Excel e importar el Excel antiguo. */
 export function DataView({ store, data, user }: { store: DataStore; data: AppData; user: AppUser }) {
@@ -17,7 +18,8 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
   const year = new Date().getFullYear();
   const [expFrom, setExpFrom] = useState(`${year}-01-01`);
   const [expTo, setExpTo] = useState(`${year}-12-31`);
-  const isAdmin = user.role === 'admin';
+  const admin = useAdmin();
+  const isAdmin = admin.active;
 
   const refresh = useCallback(() => store.listSnapshots().then(setSnaps).catch((e) => toast(e.message, 'error')), [store, toast]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -35,6 +37,7 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
   });
 
   const restore = async (s: SnapshotInfo) => {
+    if (!(await admin.requestAdmin('Restaurar una copia completa requiere el modo administrador.'))) return;
     const ok = await confirm({
       title: 'Restaurar copia',
       danger: true,
@@ -125,14 +128,14 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
                   <td className="nowrap">{s.employees} personas · {s.entries} marcas</td>
                   <td className="nowrap right">
                     <button onClick={() => downloadSnap(s)} disabled={!!busy}>⬇ Excel</button>{' '}
-                    {isAdmin && <button className="danger-ghost" onClick={() => restore(s)} disabled={!!busy || !data.canEdit}>↺ Restaurar</button>}
+                    <button className="danger-ghost" onClick={() => restore(s)} disabled={!!busy || !data.canEdit}>{isAdmin ? '' : '🔒 '}↺ Restaurar</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        {!isAdmin && <p className="muted small">Solo un administrador puede restaurar copias completas. Para deshacer cambios concretos usa el Historial.</p>}
+        {!isAdmin && <p className="muted small">Restaurar una copia completa requiere el modo administrador. Para deshacer cambios concretos usa el Historial.</p>}
       </section>
 
       <section className="panel">
@@ -145,15 +148,17 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
         <p className="muted small">Mismo formato que la hoja de siempre (con colores), más una hoja de resumen y la leyenda.</p>
       </section>
 
-      {isAdmin && (
+      {(
         <section className="panel">
           <h2>Importar el Excel antiguo</h2>
           <p className="muted small">
             Carga el archivo «Control Ausencias» (.xlsx o .xlsm). Se lee en tu ordenador; verás un resumen antes de confirmar.
             <b> Sustituye todos los datos actuales</b> (se guarda una copia automática antes).
           </p>
-          <input type="file" accept=".xlsx,.xlsm" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} disabled={!!busy || !data.canEdit} />
-          {busy === 'parse' && <p>Leyendo el archivo…</p>}
+          <AdminGate what="Importar">
+            <input type="file" accept=".xlsx,.xlsm" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = ''; }} disabled={!!busy || !data.canEdit} />
+            {busy === 'parse' && <p>Leyendo el archivo…</p>}
+          </AdminGate>
         </section>
       )}
 
