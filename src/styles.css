@@ -361,3 +361,4 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
 .danger-box { background: #fdecea; border: 1px solid #f5b7b1; color: #922b21; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
 .danger-box ul { margin: 6px 0 0; padding-left: 18px; max-height: 140px; overflow: auto; }
 .form.narrow { max-width: 380px; }
+.banner.mobile-back { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--brand-soft); border-bottom-color: #c9dcf0; }

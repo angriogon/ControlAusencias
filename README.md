@@ -29,6 +29,7 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 - Clic en el nombre de una persona: teléfono, extensión, resumen del año y sus notas.
 - La columna **Vac.** muestra las vacaciones (V) que le quedan en el año. Abajo, el total de ausencias del día y el %.
 - Instalar en el PC: en Edge/Chrome, icono «Instalar aplicación» en la barra de direcciones.
+- **En el móvil** se abre sola una vista propia: **Hoy** (quién falta un día, agrupado por clave, con filtros por equipo y zona) y **Personas** (buscador → ficha con botón de llamar, su mes en calendario y sus notas). Tocando un día se cambia su clave y su nota; lo masivo se hace en el PC. La sesión se cierra sola tras 8 horas sin uso. Instalar: Android → Chrome → «Instalar aplicación»; iPhone → Safari → Compartir → «Añadir a pantalla de inicio».
 
 ## Modos de funcionamiento
 
