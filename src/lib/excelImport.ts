@@ -78,31 +78,34 @@ function readComments(files: Record<string, Uint8Array>, sheetPath: string): Com
   return out;
 }
 
-function readSheet(files: Record<string, Uint8Array>, wanted: RegExp): { name: string; grid: Grid; comments: Comments } {
+interface SheetRef { name: string; target: string }
+
+function listSheets(files: Record<string, Uint8Array>): SheetRef[] {
   const wb = strFromU8(files['xl/workbook.xml']);
   const rels = strFromU8(files['xl/_rels/workbook.xml.rels']);
   const sheets = [...wb.matchAll(/<sheet\b[^>]*?name="([^"]*)"[^>]*?r:id="([^"]*)"/g)].map((m) => ({ name: decode(m[1]), rid: m[2] }));
   if (!sheets.length) throw new Error('El archivo no tiene hojas reconocibles.');
-  const sheet = sheets.find((s) => wanted.test(s.name)) ?? sheets[0];
-  const relRe = new RegExp(`<Relationship\\b[^>]*Id="${sheet.rid}"[^>]*>`);
-  const rel = rels.match(relRe)?.[0] ?? '';
-  let target = rel.match(/Target="([^"]+)"/)?.[1] ?? 'worksheets/sheet1.xml';
-  target = target.startsWith('/') ? target.slice(1) : `xl/${target}`;
+  return sheets.map((sh) => {
+    const rel = rels.match(new RegExp(`<Relationship\\b[^>]*Id="${sh.rid}"[^>]*>`))?.[0] ?? '';
+    const t = rel.match(/Target="([^"]+)"/)?.[1] ?? 'worksheets/sheet1.xml';
+    return { name: sh.name, target: t.startsWith('/') ? t.slice(1) : `xl/${t}` };
+  });
+}
 
+function loadGrid(files: Record<string, Uint8Array>, target: string): Grid {
   const shared: string[] = [];
   const ssFile = files['xl/sharedStrings.xml'];
   if (ssFile) {
     for (const m of strFromU8(ssFile).matchAll(/<si>([\s\S]*?)<\/si>/g)) shared.push(textOf(m[1]));
   }
-
-  const xml = strFromU8(files[target]);
+  const xml = files[target] ? strFromU8(files[target]) : '';
   const grid: Grid = new Map();
   const cellRe = /<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
   for (const m of xml.matchAll(cellRe)) {
     const body = m[4];
     if (!body) continue;
     const row = Number(m[2]);
-    if (row > 2000) continue;
+    if (row > 20000) continue;
     const col = colIndex(m[1]);
     const type = m[3].match(/t="([^"]+)"/)?.[1];
     const f = body.match(/<f[^>]*>([\s\S]*?)<\/f>/)?.[1];
@@ -114,7 +117,31 @@ function readSheet(files: Record<string, Uint8Array>, wanted: RegExp): { name: s
     if (!grid.has(row)) grid.set(row, new Map());
     grid.get(row)!.set(col, { v: v ?? '', f: f ? decode(f) : undefined });
   }
-  return { name: sheet.name, grid, comments: readComments(files, target) };
+  return grid;
+}
+
+export function unzipWorkbook(buffer: ArrayBuffer | Uint8Array): Record<string, Uint8Array> {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  try {
+    return unzipSync(bytes, { filter: (f) => f.name.startsWith('xl/') && !f.name.includes('media/') && !f.name.endsWith('.bin') });
+  } catch {
+    throw new Error('No parece un archivo Excel válido (.xlsx o .xlsm). Si es .xls antiguo, guárdalo antes como .xlsx.');
+  }
+}
+
+/** Todas las hojas del libro como rejilla fila → columna → texto. */
+export function readAllSheets(buffer: ArrayBuffer | Uint8Array): { name: string; cells: Map<number, Map<number, string>> }[] {
+  const files = unzipWorkbook(buffer);
+  return listSheets(files).map((sh) => {
+    const g = loadGrid(files, sh.target);
+    return { name: sh.name, cells: new Map([...g].map(([r, cols]) => [r, new Map([...cols].map(([c, cell]) => [c, cell.v]))])) };
+  });
+}
+
+function readSheet(files: Record<string, Uint8Array>, wanted: RegExp): { name: string; grid: Grid; comments: Comments } {
+  const sheets = listSheets(files);
+  const sheet = sheets.find((sh) => wanted.test(sh.name)) ?? sheets[0];
+  return { name: sheet.name, grid: loadGrid(files, sheet.target), comments: readComments(files, sheet.target) };
 }
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -137,13 +164,7 @@ const HEADERS: [RegExp, keyof Employee][] = [
 ];
 
 export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
-  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-  let files: Record<string, Uint8Array>;
-  try {
-    files = unzipSync(bytes, { filter: (f) => f.name.startsWith('xl/') && !f.name.includes('media/') && !f.name.endsWith('.bin') });
-  } catch {
-    throw new Error('No parece un archivo Excel válido (.xlsx o .xlsm). Si es .xls antiguo, guárdalo antes como .xlsx.');
-  }
+  const files = unzipWorkbook(buffer);
   const { name: sheetName, grid, comments } = readSheet(files, /ausencia/i);
   const warnings: string[] = [];
   const get = (r: number, c: number) => clean(grid.get(r)?.get(c)?.v);
