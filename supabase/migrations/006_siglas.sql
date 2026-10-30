@@ -109,31 +109,6 @@ grant execute on function public.save_employee(jsonb, text) to authenticated;
 revoke execute on function public.revert_changes(bigint[], boolean) from public, anon;
 grant execute on function public.revert_changes(bigint[], boolean) to authenticated;
 
--- Relleno inicial: siglas a partir del nombre (misma regla que la app: src/lib/siglas.ts).
--- Queda en el historial como UN solo cambio, que se puede deshacer.
-do $$
-declare r record; base text; s text; n int; w text; nm text;
-begin
-  perform set_config('app.batch_id', gen_random_uuid()::text, true);
-  perform set_config('app.batch_label', 'Siglas generadas automáticamente a partir del nombre', true);
-  for r in select id, nombre from public.employees where coalesce(siglas, '') = '' order by orden, id loop
-    nm := btrim(split_part(r.nombre, '(', 1));
-    if position(',' in nm) > 0 then
-      nm := btrim(split_part(nm, ',', 2)) || ' ' || btrim(split_part(nm, ',', 1));
-    end if;
-    nm := translate(upper(nm), 'ÁÉÍÓÚÜÑÀÈÌÒÙÇ', 'AEIOUUNAEIOUC');
-    nm := regexp_replace(nm, '[^A-Z\s-]', ' ', 'g');
-    base := '';
-    foreach w in array regexp_split_to_array(btrim(nm), '\s+') loop
-      if w <> '' and w not in ('DE','DEL','LA','LAS','LOS','Y','E','DA','DO','DI','VAN','VON') then
-        base := base || left(w, 1);
-      end if;
-    end loop;
-    base := left(coalesce(nullif(base, ''), 'X'), 6);
-    s := base; n := 2;
-    while exists (select 1 from public.employees where upper(siglas) = s) loop
-      s := base || n; n := n + 1;
-    end loop;
-    update public.employees set siglas = s where id = r.id;
-  end loop;
-end $$;
+-- Nota: se probó un relleno automático a partir del nombre, pero las siglas
+-- se rellenan a mano desde Ajustes (decisión del administrador). Se vaciaron
+-- después con un cambio registrado en el historial.
