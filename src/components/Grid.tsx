@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from 'react';
-import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type Code, type Employee, type Entry, type Note, type PresenceUser } from '../types';
+import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type NoteChange, type Code, type Employee, type Entry, type Note, type PresenceUser } from '../types';
 import { entryKey } from '../data/useAppData';
 import { WEEKDAY_LETTER, formatDate, formatDateLong, isWeekend, isoWeek, parseIso, todayIso, weekday } from '../lib/dates';
 import { normalizeCode } from '../lib/codes';
@@ -29,6 +29,7 @@ interface Props {
   onCursor: (cell: { employeeId: string; date: string } | null) => void;
   onApply: (changes: CellChange[], label: string) => Promise<boolean>;
   onSaveNote: (employeeId: string, date: string, text: string, label: string) => Promise<boolean>;
+  onApplyCombined: (cells: CellChange[], notes: NoteChange[], label: string) => Promise<boolean>;
   onOpenEmployee: (e: Employee) => void;
 }
 
@@ -103,6 +104,25 @@ export function Grid(p: Props) {
     if (!allowed.length) return false;
     if (!(await ensureMassAllowed(allowed))) return false;
     return p.onApply(allowed, label);
+  };
+
+  /** Supr: borra TODO lo de los días seleccionados (clave y nota) en un solo paso que se deshace de una vez. */
+  const clearAll = async () => {
+    const cells = cellsInSel();
+    const { allowed, skipped } = protect(cells.map((c) => ({ employeeId: c.emp.id, date: c.date, code: null })));
+    // En selecciones de varias celdas, los días con FN/FL/F se dejan intactos (clave y nota)
+    const keep = new Set(cells.length > 1
+      ? cells.filter((c) => !allowed.some((a) => a.employeeId === c.emp.id && a.date === c.date)).map((c) => entryKey(c.emp.id, c.date))
+      : []);
+    const notes: NoteChange[] = cells
+      .filter((c) => p.notes.has(entryKey(c.emp.id, c.date)) && !keep.has(entryKey(c.emp.id, c.date)))
+      .map((c) => ({ employeeId: c.emp.id, date: c.date, text: null }));
+    const codes = allowed.filter((c) => p.entries.has(entryKey(c.employeeId, c.date)));
+    if (!codes.length && !notes.length) { if (skipped) toast(`${skipped} día(s) con FN, FL o F no se han modificado`, 'info'); return; }
+    if (!(await ensureMassAllowed(codes))) return;
+    if (skipped) toast(`${skipped} día(s) con FN, FL o F no se han modificado`, 'info');
+    const one = cells.length === 1 ? `${cells[0].emp.nombre} ${formatDate(cells[0].date)}` : describeSel();
+    await p.onApplyCombined(codes, notes, `Borra todo · ${one}`);
   };
 
   const openPicker = (filter = '', at?: { x: number; y: number }) => {
@@ -190,10 +210,7 @@ export function Grid(p: Props) {
     else if (k === 'Enter' || k === 'F2' || k === ' ') { e.preventDefault(); openPicker(); }
     else if (k === 'Delete' || k === 'Backspace') {
       e.preventDefault();
-      if (sel && p.canEdit) {
-        const cells = cellsInSel();
-        applyCells(cells.map((c) => ({ employeeId: c.emp.id, date: c.date, code: null })), `Borra · ${describeSel()}`);
-      }
+      if (sel && p.canEdit) clearAll();
     }
     else if (k === 'Escape') { setSel(null); }
     else if (ctrl && k.toLowerCase() === 'a') { e.preventDefault(); selectAll(); }
@@ -295,12 +312,23 @@ export function Grid(p: Props) {
   const fullRows = !!sel && r?.c0 === 0 && r?.c1 === lastCol && selCount > 1;
   const fullCols = !!sel && r?.r0 === 0 && r?.r1 === lastRow && selCount > 1;
 
+  // La columna "Persona" se ajusta al nombre más largo para que se lean completos
+  const nameWidth = useMemo(() => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx) return 280;
+    ctx.font = '600 12px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
+    const widest = Math.max(0, ...p.employees.map((e) => ctx.measureText(e.nombre).width));
+    return Math.round(Math.min(440, Math.max(200, widest + 44))); // 44 = márgenes + botón ⓘ
+  }, [p.employees]);
+
   return (
-    <div className="grid-wrap" ref={wrap} tabIndex={0} onKeyDown={onKey} aria-label="Calendario de ausencias">
+    <div className="grid-wrap" ref={wrap} tabIndex={0} onKeyDown={onKey} aria-label="Calendario de ausencias"
+      style={{ ['--name-w' as string]: `${nameWidth}px` }}>
       <table className="grid">
         <thead>
           <tr className="weeks">
             <th className="sticky-col name-col" />
+            <th className="sticky-col sig-col" />
             <th className="sticky-col vac-col" />
             {p.days.map((d, i) => (weekday(d) === 1 || i === 0
               ? <th key={d} colSpan={Math.min(7 - ((weekday(d) + 6) % 7), p.days.length - i)} className="week-label">Sem. {isoWeek(d)}</th>
@@ -308,6 +336,7 @@ export function Grid(p: Props) {
           </tr>
           <tr>
             <th className="sticky-col name-col corner selectable" title="Clic: seleccionar todo el mes" onClick={(e) => p.canEdit && selectAll({ x: e.clientX, y: e.clientY + 8 })}>Persona</th>
+            <th className="sticky-col sig-col corner" title="Siglas de la persona (las de las planificaciones)">Siglas</th>
             <th className="sticky-col vac-col corner" title="Días de vacaciones (V) que le quedan este año">Vac.</th>
             {p.days.map((d, ci) => {
               const { d: dd } = parseIso(d);
@@ -331,7 +360,7 @@ export function Grid(p: Props) {
             if (row.kind === 'group') {
               return (
                 <tr key={`g-${row.label}`} className="group-row">
-                  <td className="sticky-col name-col group-label" colSpan={2}>{row.label} <small>({row.count})</small></td>
+                  <td className="sticky-col name-col group-label" colSpan={3}>{row.label} <small>({row.count})</small></td>
                   <td colSpan={p.days.length} />
                 </tr>
               );
@@ -369,6 +398,7 @@ export function Grid(p: Props) {
         <tfoot>
           <tr>
             <td className="sticky-col name-col foot-label">Ausencias del día</td>
+            <td className="sticky-col sig-col" />
             <td className="sticky-col vac-col" />
             {totals.map((t, i) => (
               <td key={p.days[i]} className={`foot ${isWeekend(p.days[i]) ? 'we' : ''} ${t.abs ? 'has' : ''}`}
@@ -379,6 +409,7 @@ export function Grid(p: Props) {
           </tr>
           <tr>
             <td className="sticky-col name-col foot-label">% sobre {p.employees.length} visibles</td>
+            <td className="sticky-col sig-col" />
             <td className="sticky-col vac-col" />
             {totals.map((t, i) => (
               <td key={p.days[i]} className={`foot pct ${isWeekend(p.days[i]) ? 'we' : ''}`}>
@@ -453,6 +484,7 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
         </button>
         <button className="info-btn" onClick={() => p.onOpenEmployee(p.emp)} title="Ver ficha (teléfono, resumen y notas)" aria-label={`Ficha de ${p.emp.nombre}`}>ⓘ</button>
       </th>
+      <td className="sticky-col sig-col sig" title={p.emp.siglas ? `Siglas: ${p.emp.siglas}` : 'Sin siglas'}>{p.emp.siglas}</td>
       <td className={`sticky-col vac-col vac ${p.vacLeft != null && p.vacLeft < 0 ? 'neg' : ''}`}>{p.vacLeft ?? ''}</td>
       {p.days.map((d, ci) => {
         const code = codes[ci];

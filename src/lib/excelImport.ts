@@ -1,6 +1,7 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import type { Code, Dataset, Employee, Entry, Note } from '../types';
 import { DEFAULT_CODES, normalizeCode } from './codes';
+import { fillSiglas } from './siglas';
 import { MONTHS_SHORT, WEEKDAY_LETTER, iso, weekday, daysInMonth } from './dates';
 
 /**
@@ -250,6 +251,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
     const emp: Employee = {
       id: crypto.randomUUID(),
       nombre,
+      siglas: '',
       telefono: field('telefono'),
       extension: field('extension'),
       almacen: field('almacen'),
@@ -325,7 +327,8 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
 
   const dates = [...colDate.values()].sort();
   return {
-    dataset: { employees, codes, entries, notes },
+    // Siglas propuestas a partir del nombre (el Excel no las tiene): se revisan en Ajustes
+    dataset: { employees: fillSiglas(employees), codes, entries, notes },
     warnings,
     stats: {
       employees: employees.length,

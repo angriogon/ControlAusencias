@@ -168,11 +168,11 @@ function PeopleView({ data, onOpen }: { data: AppData; onOpen: (e: Employee) => 
   const [q, setQ] = useState('');
   const today = todayIso();
   const byCode = new Map(data.codes.map((c) => [c.code, c]));
-  const list = data.employees.filter((e) => e.activo && matches(q, e.nombre, e.zona, e.sede, e.equipo, e.telefono, e.extension, e.almacen));
+  const list = data.employees.filter((e) => e.activo && matches(q, e.nombre, e.siglas, e.zona, e.sede, e.equipo, e.telefono, e.extension, e.almacen));
 
   return (
     <div className="m-page">
-      <input className="m-search" type="search" placeholder="🔍 Nombre, zona, sede, teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="m-search" type="search" placeholder="🔍 Nombre, siglas, zona, teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
       <p className="m-muted small">{list.length} persona(s) · a la derecha, su marca de hoy</p>
       <ul className="m-list m-card">
         {list.map((e) => {
@@ -184,7 +184,7 @@ function PeopleView({ data, onOpen }: { data: AppData; onOpen: (e: Employee) => 
                 <span className="m-row">
                   <span>
                     <span className="m-name">{e.nombre}</span>
-                    <span className="m-sub">{[e.equipo, e.zona, e.sede].filter(Boolean).join(' · ')}</span>
+                    <span className="m-sub">{[e.siglas, e.equipo, e.zona, e.sede].filter(Boolean).join(' · ')}</span>
                   </span>
                   {code && <span className="chip small" style={{ background: c?.color ?? '#ddd', color: c?.textColor ?? '#000' }}>{code}</span>}
                 </span>
@@ -241,7 +241,7 @@ function PersonDetail({ data, emp, initialDate, onBack }: {
       <button className="m-back" onClick={onBack}>‹ Volver</button>
       <section className="m-card m-person">
         <h1>{emp.nombre}</h1>
-        <p className="m-sub">{[emp.equipo, emp.zona, emp.sede].filter(Boolean).join(' · ')}</p>
+        <p className="m-sub">{[emp.siglas, emp.equipo, emp.zona, emp.sede].filter(Boolean).join(' · ')}</p>
         <div className="m-calls">
           {phones.map((p) => (
             <a key={p.number} className="m-btn primary" href={`tel:${p.number}`}>📞 {p.label}<small>{p.number}</small></a>

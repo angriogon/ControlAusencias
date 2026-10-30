@@ -19,8 +19,8 @@ export async function exportToExcel(d: Dataset, from: string, to: string, fileNa
   const noteByKey = new Map((d.notes ?? []).map((n) => [`${n.employeeId}|${n.date}`, n]));
 
   // ---------- Hoja calendario ----------
-  const ws = wb.addWorksheet('Ausencias', { views: [{ state: 'frozen', xSplit: 5, ySplit: 3 }] });
-  const info = ['Nombre', 'Equipo', 'Zona', 'Sede', 'Team Leader'];
+  const ws = wb.addWorksheet('Ausencias', { views: [{ state: 'frozen', xSplit: 6, ySplit: 3 }] });
+  const info = ['Nombre', 'Siglas', 'Equipo', 'Zona', 'Sede', 'Team Leader'];
   const r1 = ws.getRow(1);
   const r2 = ws.getRow(2);
   const r3 = ws.getRow(3);
@@ -38,11 +38,11 @@ export async function exportToExcel(d: Dataset, from: string, to: string, fileNa
   });
   [r1, r2, r3].forEach((r) => { r.font = { bold: true }; r.alignment = { horizontal: 'center' }; });
   ws.getColumn(1).width = 34;
-  [2, 3, 4, 5].forEach((c) => { ws.getColumn(c).width = 14; });
+  [2, 3, 4, 5, 6].forEach((c) => { ws.getColumn(c).width = c === 2 ? 9 : 14; });
 
   emps.forEach((e, idx) => {
     const row = ws.getRow(4 + idx);
-    [e.nombre, e.equipo, e.zona, e.sede, e.teamLeader].forEach((v, i) => { row.getCell(i + 1).value = v; });
+    [e.nombre, e.siglas ?? '', e.equipo, e.zona, e.sede, e.teamLeader].forEach((v, i) => { row.getCell(i + 1).value = v; });
     days.forEach((day, i) => {
       const code = byKey.get(`${e.id}|${day}`);
       const note = noteByKey.get(`${e.id}|${day}`);
@@ -62,14 +62,14 @@ export async function exportToExcel(d: Dataset, from: string, to: string, fileNa
   // ---------- Hoja resumen por persona ----------
   const sum = wb.addWorksheet('Resumen');
   const ordered = [...d.codes].sort((a, b) => a.orden - b.orden);
-  sum.addRow(['Nombre', 'Equipo', 'Zona', ...ordered.map((c) => c.code), 'Vacaciones año', 'Vacaciones pendientes']).font = { bold: true };
+  sum.addRow(['Nombre', 'Siglas', 'Equipo', 'Zona', ...ordered.map((c) => c.code), 'Vacaciones año', 'Vacaciones pendientes']).font = { bold: true };
   emps.forEach((e) => {
     const counts = new Map<string, number>();
     days.forEach((day) => {
       const code = byKey.get(`${e.id}|${day}`);
       if (code) counts.set(code, (counts.get(code) ?? 0) + 1);
     });
-    sum.addRow([e.nombre, e.equipo, e.zona, ...ordered.map((c) => counts.get(c.code) ?? 0), e.diasVacaciones, e.diasVacaciones - (counts.get('V') ?? 0)]);
+    sum.addRow([e.nombre, e.siglas ?? '', e.equipo, e.zona, ...ordered.map((c) => counts.get(c.code) ?? 0), e.diasVacaciones, e.diasVacaciones - (counts.get('V') ?? 0)]);
   });
   sum.getColumn(1).width = 34;
 

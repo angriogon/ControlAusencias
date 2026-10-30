@@ -1,6 +1,7 @@
 import type { Dataset, Employee, Entry } from '../types';
 import { DEFAULT_CODES } from '../lib/codes';
 import { addDays, isWeekend, iso } from '../lib/dates';
+import { fillSiglas } from '../lib/siglas';
 
 /**
  * Datos de ejemplo 100% ficticios para probar la app en modo local.
@@ -31,9 +32,10 @@ const PEOPLE: [string, string, string, string][] = [
 const LEADERS: Record<string, string> = { Occ: 'ABDUL', Ori: 'ABDUL', Cen: 'ADGG', Lev: 'OLTRA', Mur: 'OLTRA', Cat: 'MARC', Nor: 'MARC', Lpa: 'JONAS', Ten: 'JONAS' };
 
 export function demoDataset(year: number): Dataset {
-  const employees: Employee[] = PEOPLE.map(([nombre, equipo, zona, sede], i) => ({
+  const employees: Employee[] = fillSiglas(PEOPLE.map(([nombre, equipo, zona, sede], i) => ({
     id: crypto.randomUUID(),
     nombre,
+    siglas: '',
     telefono: `600 000 ${String(100 + i).padStart(3, '0')}`,
     extension: String(58100 + i),
     almacen: equipo === 'TEC.P' ? `O${zona.toUpperCase().slice(0, 2)}${(i % 5) + 1}` : '',
@@ -48,7 +50,7 @@ export function demoDataset(year: number): Dataset {
     notas: '',
     orden: i,
     activo: true,
-  }));
+  })));
 
   const entries: Entry[] = [];
   const put = (e: Employee, date: string, code: string) => entries.push({ employeeId: e.id, date, code });

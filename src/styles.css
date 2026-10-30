@@ -18,6 +18,7 @@
   --radius: 10px;
   --shadow: 0 6px 24px rgba(16, 24, 40, 0.12);
   --name-w: 240px;
+  --sig-w: 56px;
   --vac-w: 44px;
   color-scheme: light;
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
@@ -145,7 +146,8 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
 .grid .monday { border-left: 2px solid var(--line-strong); }
 .sticky-col { position: sticky; z-index: 1; background: #fff; }
 .name-col { left: 0; width: var(--name-w); min-width: var(--name-w); max-width: var(--name-w); }
-.vac-col { left: var(--name-w); width: var(--vac-w); min-width: var(--vac-w); text-align: center; box-shadow: 2px 0 0 var(--line-strong); }
+.sig-col { left: var(--name-w); width: var(--sig-w); min-width: var(--sig-w); max-width: var(--sig-w); text-align: center; }
+.vac-col { left: calc(var(--name-w) + var(--sig-w)); width: var(--vac-w); min-width: var(--vac-w); text-align: center; box-shadow: 2px 0 0 var(--line-strong); }
 .grid thead .sticky-col { z-index: 3; }
 .grid thead .corner { text-align: left; padding: 4px 8px; vertical-align: bottom; }
 .grid thead .vac-col.corner { text-align: center; padding: 4px 0; }
@@ -155,7 +157,8 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
   padding: 3px 8px; display: flex; flex-direction: column; line-height: 1.2; overflow: hidden;
 }
 .person-btn:hover { background: var(--brand-soft) !important; }
-.pname { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+/* Nombre completo: la columna se ajusta al más largo; si aun así no cabe, salta de línea */
+.pname { font-weight: 600; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
 .psub { color: var(--muted); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vac { font-weight: 700; color: var(--ok); }
 .vac.neg { color: var(--danger); }
@@ -362,3 +365,7 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
 .danger-box ul { margin: 6px 0 0; padding-left: 18px; max-height: 140px; overflow: auto; }
 .form.narrow { max-width: 380px; }
 .banner.mobile-back { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--brand-soft); border-bottom-color: #c9dcf0; }
+
+.sig { font-weight: 700; font-size: 11px; color: var(--brand); letter-spacing: 0.02em; }
+.grid thead .sig-col.corner { text-align: center; padding: 4px 0; }
+.inline-field { display: flex; gap: 6px; } .inline-field input { flex: 1; text-transform: uppercase; }

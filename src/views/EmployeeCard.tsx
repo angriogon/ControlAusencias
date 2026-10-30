@@ -22,7 +22,7 @@ export function EmployeeCard({ emp, year, data, onClose, onEdit }: {
   const vp = counts.get('VP') ?? 0;
 
   const rows: [string, string][] = [
-    ['Teléfono', emp.telefono], ['Extensión', emp.extension], ['Equipo', emp.equipo], ['Zona', emp.zona],
+    ['Siglas', emp.siglas], ['Teléfono', emp.telefono], ['Extensión', emp.extension], ['Equipo', emp.equipo], ['Zona', emp.zona],
     ['Sede', emp.sede], ['Almacén VK', emp.almacen], ['Team leader', emp.teamLeader], ['Guardias', emp.guardias], ['Notas', emp.notas],
   ];
 

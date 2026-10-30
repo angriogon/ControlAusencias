@@ -15,7 +15,7 @@ export function SummaryView({ data }: { data: AppData }) {
   const active = useMemo(() => data.employees.filter((e) => e.activo), [data.employees]);
   const equipos = [...new Set(active.map((e) => e.equipo).filter(Boolean))].sort();
   const people = useMemo(
-    () => active.filter((e) => (!equipo || e.equipo === equipo) && matches(q, e.nombre)),
+    () => active.filter((e) => (!equipo || e.equipo === equipo) && matches(q, e.nombre, e.siglas)),
     [active, equipo, q],
   );
   const absenceCodes = useMemo(() => new Set(data.codes.filter((c) => c.category === 'ausencia').map((c) => c.code)), [data.codes]);

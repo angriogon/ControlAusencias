@@ -4,10 +4,11 @@ import type { AppData } from '../data/useAppData';
 import type { AppUser, Code, Employee } from '../types';
 import { Modal, useUi } from '../components/ui';
 import { matches } from '../lib/search';
+import { fillSiglas, makeSiglas, normSiglas } from '../lib/siglas';
 import { AdminGate, useAdmin } from '../components/admin';
 
 const blankEmployee = (orden: number): Employee => ({
-  id: crypto.randomUUID(), nombre: '', telefono: '', extension: '', almacen: '', teamLeader: '', equipo: '',
+  id: crypto.randomUUID(), nombre: '', siglas: '', telefono: '', extension: '', almacen: '', teamLeader: '', equipo: '',
   zona: '', guardias: 'NO', sede: '', diasVacaciones: 25, vpPendientes: 0, diasLh: 0, notas: '', orden, activo: true,
 });
 
@@ -26,7 +27,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
   const canEdit = data.canEdit && user.role !== 'lector' && admin.active;
 
   const list = data.employees.filter((e) => (showInactive || e.activo)
-    && matches(q, e.nombre, e.equipo, e.zona, e.sede));
+    && matches(q, e.nombre, e.siglas, e.equipo, e.zona, e.sede));
 
   const saveEmp = async (e: Employee) => {
     try {
@@ -113,7 +114,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
             {canEdit && <button className="primary" onClick={() => setEditing(blankEmployee(Math.max(0, ...data.employees.map((e) => e.orden)) + 1))}>＋ Añadir persona</button>}
           </div>
           <table className="table">
-            <thead><tr><th>Orden</th><th>Nombre</th><th>Equipo</th><th>Zona</th><th>Sede</th><th>Teléfono</th><th>Vac.</th><th /></tr></thead>
+            <thead><tr><th>Orden</th><th>Nombre</th><th>Siglas</th><th>Equipo</th><th>Zona</th><th>Sede</th><th>Teléfono</th><th>Vac.</th><th /></tr></thead>
             <tbody>
               {list.map((e) => (
                 <tr key={e.id} className={e.activo ? '' : 'inactive'}>
@@ -124,6 +125,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
                     </>}
                   </td>
                   <td><b>{e.nombre}</b>{!e.activo && <span className="tag gray">oculta</span>}</td>
+                  <td className="sig">{e.siglas || <span className="muted">—</span>}</td>
                   <td>{e.equipo}</td><td>{e.zona}</td><td>{e.sede}</td><td>{e.telefono}</td><td>{e.diasVacaciones}</td>
                   <td className="nowrap right">
                     {canEdit && <>
@@ -170,6 +172,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
         <EmployeeForm
           initial={editing}
           isNew={!data.employees.some((e) => e.id === editing.id)}
+          others={data.employees}
           onClose={() => setEditing(null)}
           onSave={async (e) => { if (await saveEmp(e)) setEditing(null); }}
         />
@@ -186,10 +189,17 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
   );
 }
 
-export function EmployeeForm({ initial, isNew, onClose, onSave }: {
-  initial: Employee; isNew: boolean; onClose: () => void; onSave: (e: Employee) => void;
+export function EmployeeForm({ initial, isNew, others = [], onClose, onSave }: {
+  initial: Employee; isNew: boolean; others?: Employee[]; onClose: () => void; onSave: (e: Employee) => void;
 }) {
   const [e, setE] = useState(initial);
+  const sig = normSiglas(e.siglas ?? '');
+  const dupe = sig ? others.find((o) => o.id !== e.id && normSiglas(o.siglas ?? '') === sig) : undefined;
+  const suggest = () => {
+    const used = others.filter((o) => o.id !== e.id);
+    const [mine] = fillSiglas([...used, { ...e, siglas: '' }]).slice(-1);
+    setE((x) => ({ ...x, siglas: mine.siglas || makeSiglas(x.nombre) }));
+  };
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof Employee>(k: K, v: Employee[K]) => setE((x) => ({ ...x, [k]: v }));
   const text = (k: keyof Employee, label: string, ph = '') => (
@@ -201,12 +211,19 @@ export function EmployeeForm({ initial, isNew, onClose, onSave }: {
   return (
     <Modal title={isNew ? 'Añadir persona' : `Editar · ${initial.nombre}`} wide onClose={onClose} footer={<>
       <button onClick={onClose}>Cancelar</button>
-      <button className="primary" disabled={!e.nombre.trim() || busy} onClick={async () => { setBusy(true); await onSave({ ...e, nombre: e.nombre.trim() }); setBusy(false); }}>
+      <button className="primary" disabled={!e.nombre.trim() || busy || !!dupe} onClick={async () => { setBusy(true); await onSave({ ...e, nombre: e.nombre.trim(), siglas: sig }); setBusy(false); }}>
         Guardar
       </button>
     </>}>
       <div className="form grid2">
         {text('nombre', 'Nombre completo *')}
+        <label>Siglas (las de las planificaciones)
+          <span className="inline-field">
+            <input value={e.siglas ?? ''} maxLength={10} placeholder="p. ej. AMRG" onChange={(ev) => set('siglas', ev.target.value.toUpperCase())} />
+            <button type="button" onClick={suggest} title="Proponer a partir del nombre">Proponer</button>
+          </span>
+          {dupe && <span className="error small">Ya las tiene {dupe.nombre}</span>}
+        </label>
         {text('sede', 'Sede / puesto', 'p. ej. DISPATCHER 1 SEV')}
         {text('equipo', 'Equipo', 'DISPATCH, ALMACEN, TEC.P…')}
         {text('zona', 'Zona', 'Sev, Cen, Lev…')}
