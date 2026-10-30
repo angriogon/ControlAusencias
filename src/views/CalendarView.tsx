@@ -9,6 +9,7 @@ import { matches } from '../lib/search';
 import { Grid, type GridRow, type GroupRow } from '../components/Grid';
 import { Modal, useUi } from '../components/ui';
 import { EmployeeCard } from './EmployeeCard';
+import { PlanningImport } from './PlanningImport';
 
 type GroupBy = 'none' | 'equipo' | 'zona' | 'teamLeader' | 'sede';
 const GROUP_LABEL: Record<GroupBy, string> = { none: 'Sin agrupar', equipo: 'Equipo', zona: 'Zona', teamLeader: 'Team leader', sede: 'Sede' };
@@ -32,6 +33,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
   const [groupBy, setGroupBy] = useState<GroupBy>(saved.groupBy ?? 'none');
   const [showLegend, setShowLegend] = useState<boolean>(saved.showLegend ?? true);
   const [period, setPeriod] = useState(false);
+  const [planning, setPlanning] = useState(false);
   const [card, setCard] = useState<Employee | null>(null);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
 
         <div className="actions">
           <button className="primary" onClick={() => setPeriod(true)} disabled={!data.canEdit}>＋ Marcar periodo</button>
+          <button onClick={() => setPlanning(true)} disabled={!data.canEdit} title="Marcar PC desde un Excel de planificación">📥 Importar planificación</button>
           <button onClick={() => setShowLegend((v) => !v)}>{showLegend ? 'Ocultar leyenda' : 'Ver leyenda'}</button>
         </div>
       </div>
@@ -161,6 +164,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
           />
         )}
 
+      {planning && <PlanningImport data={data} onClose={() => setPlanning(false)} />}
       {period && (
         <PeriodDialog
           employees={ordered}

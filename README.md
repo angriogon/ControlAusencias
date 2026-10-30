@@ -20,6 +20,7 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 - **Paleta**: escribe para filtrar, muévete con las flechas y pulsa Enter: guarda la clave y la nota a la vez.
 - **Protegidas**: FN, FL y F nunca se sobrescriben en cambios de varias celdas ni en «Marcar periodo» (se avisa en rojo).
 - **Compañeros**: se ve en qué celda está cada uno (recuadro de color con sus iniciales).
+- **📥 Importar planificación** (calendario): carga el Excel de la planificación (fecha, hora, lugar y siglas en «Siglas» o «Empresa instaladora»). Marca **PC** con una nota «motivo · lugar · hora»; si el día tiene otra clave no se toca y se avisa en rojo; si ya tenía PC solo añade la nota. Se cruza por las **siglas** de cada persona (Ajustes). Ctrl+Z deshace la importación entera.
 - **🔒 Modo administrador** (botón arriba, contraseña compartida, dura 4 h): necesario para importar, restaurar copias, gestionar personas y claves, y cambios a más de 5 personas a la vez. La contraseña se crea en Ajustes → Contraseña admin (usuarios con rol admin).
 - **Vacaciones de X a Y o festivo para todos**: botón **＋ Marcar periodo**.
 - **Borrar**: selecciona y pulsa `Supr`, o «Vaciar celda(s)» en la paleta.

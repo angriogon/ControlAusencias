@@ -369,3 +369,10 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
 .sig { font-weight: 700; font-size: 11px; color: var(--brand); letter-spacing: 0.02em; }
 .grid thead .sig-col.corner { text-align: center; padding: 4px 0; }
 .inline-field { display: flex; gap: 6px; } .inline-field input { flex: 1; text-transform: uppercase; }
+
+/* ---------- Importar planificación ---------- */
+.form .row3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 8px; }
+.place-cols { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-top: 8px; }
+.place-cols label.check { font-weight: normal; }
+details > summary { cursor: pointer; color: var(--brand-2); font-size: 13px; }
+.plan-preview { max-height: 280px; }
