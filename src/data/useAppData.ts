@@ -13,6 +13,8 @@ interface UndoItem {
   applied: CellChange[];
   notesInverse?: NoteChange[];
   notesApplied?: NoteChange[];
+  /** Otros lotes del mismo gesto (p. ej. borrar clave + nota con Supr): se deshacen juntos. */
+  extraBatchIds?: string[];
 }
 
 /**
@@ -230,6 +232,54 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     }
   }, [store, canEdit, onError]);
 
+  /**
+   * Cambia claves y notas en un mismo gesto (p. ej. Supr borra todo lo del día).
+   * Se ve al instante, se guarda en segundo plano y se deshace de una sola vez.
+   */
+  const applyCombined = useCallback(async (cells: CellChange[], noteChanges: NoteChange[], label: string) => {
+    const cur = entriesRef.current;
+    const curN = notesRef.current;
+    const k = (c: { employeeId: string; date: string }) => entryKey(c.employeeId, c.date);
+    const realC = cells.filter((c) => (cur.get(k(c))?.code ?? null) !== c.code);
+    const realN = noteChanges.filter((c) => (curN.get(k(c))?.text ?? null) !== (c.text?.trim() ? c.text.trim() : null));
+    if (!realC.length && !realN.length) return true;
+    if (!canEdit) { onError('Sin conexión: no se pueden guardar cambios ahora mismo.'); return false; }
+    const invC = realC.map((c) => ({ ...c, code: cur.get(k(c))?.code ?? null }));
+    const invN = realN.map((c) => ({ ...c, text: curN.get(k(c))?.text ?? null }));
+    const setCodes = (list: CellChange[]) => setEntries((prev) => {
+      const next = new Map(prev);
+      for (const c of list) {
+        if (c.code) next.set(k(c), { employeeId: c.employeeId, date: c.date, code: c.code, updatedAt: new Date().toISOString(), updatedBy: 'tú' });
+        else next.delete(k(c));
+      }
+      return next;
+    });
+    setCodes(realC);
+    applyNotesLocal(realN, 'tú');
+    setPending((n) => n + 1);
+    try {
+      const ids: string[] = [];
+      if (realC.length) { const b = await store.applyChanges(realC, label); if (b) ids.push(b); }
+      if (realN.length) { const b = await store.applyNotes(realN, label); if (b) ids.push(b); }
+      setFailed(false);
+      undoStack.current.push({
+        label, batchId: ids[0] ?? null, extraBatchIds: ids.slice(1),
+        inverse: invC, applied: realC, notesInverse: invN, notesApplied: realN,
+      });
+      if (undoStack.current.length > 50) undoStack.current.shift();
+      setUndoSize(undoStack.current.length);
+      return true;
+    } catch (e) {
+      setCodes(invC);
+      applyNotesLocal(invN, '');
+      setFailed(true);
+      onError(`No se ha guardado el cambio: ${(e as Error).message}`);
+      return false;
+    } finally {
+      setPending((n) => n - 1);
+    }
+  }, [store, canEdit, onError]);
+
   /** Deshace mi último cambio. Devuelve la descripción o null. */
   const undo = useCallback(async (confirmOverwrite: (n: number) => Promise<boolean>) => {
     const item = undoStack.current.pop();
@@ -252,6 +302,7 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     // Se deshace a través del historial para que el cambio original quede marcado como "deshecho".
     try {
       await store.revertBatch(item.batchId, touched > 0);
+      for (const b of item.extraBatchIds ?? []) await store.revertBatch(b, touched > 0);
     } catch (e) {
       onError(`No se pudo deshacer: ${(e as Error).message}`);
       return null;
@@ -284,6 +335,7 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     loadYear,
     reloadAll,
     apply,
+    applyCombined,
     saveNote,
     undo,
     setEmployees,

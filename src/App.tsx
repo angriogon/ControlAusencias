@@ -65,6 +65,9 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     saveNote: readOnly
       ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
       : data.saveNote,
+    applyCombined: readOnly
+      ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
+      : data.applyCombined,
   }), [data, readOnly, toast]);
 
   useEffect(() => { try { localStorage.setItem('ca-tab', tab); } catch { /* */ } }, [tab]);
@@ -184,7 +187,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
       </main>
 
       {editing && tab !== 'settings' && admin.active && (
-        <EmployeeForm initial={editing} isNew={false} onClose={() => setEditing(null)} onSave={saveEditing} />
+        <EmployeeForm initial={editing} isNew={false} others={data.employees} onClose={() => setEditing(null)} onSave={saveEditing} />
       )}
     </div>
   );

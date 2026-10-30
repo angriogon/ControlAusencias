@@ -14,6 +14,7 @@ type Row = Record<string, unknown>;
 const empFromRow = (r: Row): Employee => ({
   id: r.id as string,
   nombre: (r.nombre as string) ?? '',
+  siglas: (r.siglas as string) ?? '',
   telefono: (r.telefono as string) ?? '',
   extension: (r.extension as string) ?? '',
   almacen: (r.almacen as string) ?? '',
@@ -31,7 +32,7 @@ const empFromRow = (r: Row): Employee => ({
 });
 
 const empToRow = (e: Employee): Row => ({
-  id: e.id, nombre: e.nombre, telefono: e.telefono, extension: e.extension, almacen: e.almacen,
+  id: e.id, nombre: e.nombre, siglas: e.siglas ?? '', telefono: e.telefono, extension: e.extension, almacen: e.almacen,
   team_leader: e.teamLeader, equipo: e.equipo, zona: e.zona, guardias: e.guardias, sede: e.sede,
   dias_vacaciones: e.diasVacaciones, vp_pendientes: e.vpPendientes, dias_lh: e.diasLh,
   notas: e.notas, orden: e.orden, activo: e.activo,
@@ -98,6 +99,7 @@ function fail(error: { message: string } | null) {
   const msg = error.message ?? 'Error desconocido';
   if (msg.includes('CONFLICT:')) throw new ConflictError(msg.split('CONFLICT:')[1].trim());
   if (msg.includes('ADMIN_REQUIRED:')) throw new AdminRequiredError(msg.split('ADMIN_REQUIRED:')[1].trim());
+  if (msg.includes('employees_siglas_uq')) throw new Error('Esas siglas ya las tiene otra persona. Elige otras.');
   throw new Error(msg);
 }
 

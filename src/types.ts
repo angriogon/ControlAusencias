@@ -2,6 +2,8 @@
 export interface Employee {
   id: string;
   nombre: string;
+  /** Siglas de la persona tal y como aparecen en las planificaciones (únicas). */
+  siglas: string;
   telefono: string;
   extension: string;
   almacen: string;

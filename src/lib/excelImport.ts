@@ -250,6 +250,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
     const emp: Employee = {
       id: crypto.randomUUID(),
       nombre,
+      siglas: '',
       telefono: field('telefono'),
       extension: field('extension'),
       almacen: field('almacen'),
@@ -325,6 +326,7 @@ export function parseWorkbook(buffer: ArrayBuffer | Uint8Array): ImportResult {
 
   const dates = [...colDate.values()].sort();
   return {
+    // Sin siglas: el Excel no las tiene y se rellenan a mano en Ajustes
     dataset: { employees, codes, entries, notes },
     warnings,
     stats: {

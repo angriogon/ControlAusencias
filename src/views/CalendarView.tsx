@@ -47,7 +47,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
 
   const filtered = useMemo(() => {
     return active.filter((e) => (!equipo || e.equipo === equipo) && (!zona || e.zona === zona) && (!tl || e.teamLeader === tl)
-      && matches(q, e.nombre, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader));
+      && matches(q, e.nombre, e.siglas, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader));
   }, [active, q, equipo, zona, tl]);
 
   const { rows, ordered } = useMemo(() => {
@@ -107,7 +107,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
         </div>
 
         <div className="filters">
-          <input className="search" placeholder="🔍 Buscar persona, sede, teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="search" placeholder="🔍 Buscar persona, siglas, sede, teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
           <select value={equipo} onChange={(e) => setEquipo(e.target.value)} aria-label="Equipo">
             <option value="">Todos los equipos</option>
             {opts('equipo').map((o) => <option key={o}>{o}</option>)}
@@ -135,7 +135,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
       {showLegend && <Legend codes={data.codes} used={usedCodes} />}
 
       <div className="hint">
-        Clic en un día para marcarlo · arrastra para varios · clic en un nombre = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
+        Clic en un día para marcarlo · arrastra para varios · Supr borra clave y nota · clic en un nombre = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
       </div>
 
       {ordered.length === 0
@@ -154,6 +154,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
             vacLeft={vacLeft}
             onApply={data.apply}
             onSaveNote={data.saveNote}
+            onApplyCombined={data.applyCombined}
             presence={presence}
             onCursor={onCursor}
             onOpenEmployee={setCard}
