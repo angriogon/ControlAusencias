@@ -31,6 +31,8 @@ interface Props {
   onSaveNote: (employeeId: string, date: string, text: string, label: string) => Promise<boolean>;
   onApplyCombined: (cells: CellChange[], notes: NoteChange[], label: string) => Promise<boolean>;
   onOpenEmployee: (e: Employee) => void;
+  /** Modo admin: editar las siglas directamente en su celda. Devuelve true si se guardó. */
+  onSaveSiglas?: (e: Employee, siglas: string) => Promise<boolean>;
 }
 
 const rect = (s: Sel) => ({
@@ -387,6 +389,8 @@ export function Grid(p: Props) {
                 flashSig={p.days.filter((d) => p.flash.has(entryKey(row.emp.id, d))).join(',')}
                 vacLeft={p.vacLeft.get(row.emp.id)}
                 canEdit={p.canEdit}
+                siglasEditable={!!p.onSaveSiglas && admin.active && p.canEdit}
+                onSaveSiglas={p.onSaveSiglas}
                 onDown={onCellDown}
                 onEnter={onCellEnter}
                 onSelectRow={selectRows}
@@ -457,6 +461,8 @@ interface RowProps {
   emp: Employee; ri: number; days: string[]; today: string; sig: string; noteSig: string; remoteSig: string;
   codeByKey: Map<string, Code>;
   selC0: number; selC1: number; rowSelected: boolean; focusC: number; flashSig: string; vacLeft?: number; canEdit: boolean;
+  siglasEditable: boolean;
+  onSaveSiglas?: (e: Employee, siglas: string) => Promise<boolean>;
   onDown: (r: number, c: number, shift: boolean) => void;
   onEnter: (r: number, c: number) => void;
   onSelectRow: (r: number, shift: boolean, at: { x: number; y: number }) => void;
@@ -484,7 +490,9 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
         </button>
         <button className="info-btn" onClick={() => p.onOpenEmployee(p.emp)} title="Ver ficha (teléfono, resumen y notas)" aria-label={`Ficha de ${p.emp.nombre}`}>ⓘ</button>
       </th>
-      <td className="sticky-col sig-col sig" title={p.emp.siglas ? `Siglas: ${p.emp.siglas}` : 'Sin siglas'}>{p.emp.siglas}</td>
+      {p.siglasEditable
+        ? <SiglasCell emp={p.emp} onSave={p.onSaveSiglas!} />
+        : <td className="sticky-col sig-col sig" title={p.emp.siglas ? `Siglas: ${p.emp.siglas}` : 'Sin siglas'}>{p.emp.siglas}</td>}
       <td className={`sticky-col vac-col vac ${p.vacLeft != null && p.vacLeft < 0 ? 'neg' : ''}`}>{p.vacLeft ?? ''}</td>
       {p.days.map((d, ci) => {
         const code = codes[ci];
@@ -530,4 +538,47 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
   );
 }, (a, b) => a.sig === b.sig && a.noteSig === b.noteSig && a.remoteSig === b.remoteSig && a.selC0 === b.selC0 && a.selC1 === b.selC1
   && a.rowSelected === b.rowSelected && a.focusC === b.focusC && a.flashSig === b.flashSig && a.emp === b.emp && a.days === b.days
-  && a.vacLeft === b.vacLeft && a.codeByKey === b.codeByKey && a.ri === b.ri && a.canEdit === b.canEdit);
+  && a.vacLeft === b.vacLeft && a.codeByKey === b.codeByKey && a.ri === b.ri && a.canEdit === b.canEdit
+  && a.siglasEditable === b.siglasEditable && a.onSaveSiglas === b.onSaveSiglas);
+
+/** Celda de siglas editable (modo admin): clic → escribir → Enter guarda, Esc cancela. */
+function SiglasCell({ emp, onSave }: { emp: Employee; onSave: (e: Employee, siglas: string) => Promise<boolean> }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(emp.siglas ?? '');
+  const [busy, setBusy] = useState(false);
+  const done = useRef(false);
+  const start = () => { setValue(emp.siglas ?? ''); done.current = false; setEditing(true); };
+  const finish = async (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const v = value.trim().toUpperCase();
+    if (!save || v === (emp.siglas ?? '')) { setEditing(false); return; }
+    setBusy(true);
+    const ok = await onSave(emp, v);
+    setBusy(false);
+    if (ok) setEditing(false); else done.current = false;
+  };
+  if (!editing) {
+    return (
+      <td className="sticky-col sig-col sig editable" title="Modo admin: clic para editar las siglas"
+        onMouseDown={(e) => e.preventDefault()} onClick={start}>
+        {emp.siglas || <span className="sig-empty">＋</span>}
+      </td>
+    );
+  }
+  return (
+    <td className="sticky-col sig-col sig editing">
+      <input
+        autoFocus value={value} maxLength={10} disabled={busy} aria-label={`Siglas de ${emp.nombre}`}
+        onChange={(e) => setValue(e.target.value.toUpperCase())}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+          else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+        }}
+        onBlur={() => finish(true)}
+        onMouseDown={(e) => e.stopPropagation()}
+      />
+    </td>
+  );
+}

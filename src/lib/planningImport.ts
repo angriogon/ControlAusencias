@@ -133,8 +133,8 @@ export function extractVisits(sheet: PlanSheet, cols: PlanColumns): PlanVisit[] 
   return out;
 }
 
-export interface PlanConflict { emp: Employee; date: string; code: string; visit: string }
-export interface PlanItem { emp: Employee; date: string; note: string; setCode: boolean; hadNote: boolean }
+export interface PlanConflict { emp: Employee; date: string; code: string; visit: string; lines: string[] }
+export interface PlanItem { emp: Employee; date: string; note: string; setCode: boolean; hadNote: boolean; replaces?: Employee }
 
 export interface PlanResult {
   visits: number;
@@ -178,7 +178,7 @@ export function planChanges(
   for (const [k, g] of [...grouped].sort((a, b) => a[1].date.localeCompare(b[1].date) || a[1].emp.nombre.localeCompare(b[1].emp.nombre))) {
     const cur = entries.get(k)?.code;
     if (cur && cur !== PLAN_CODE) {
-      conflicts.push({ emp: g.emp, date: g.date, code: cur, visit: g.lines.join(' / ') });
+      conflicts.push({ emp: g.emp, date: g.date, code: cur, visit: g.lines.join(' / '), lines: g.lines });
       continue;
     }
     const existing = notes.get(k)?.text ?? '';
@@ -191,4 +191,43 @@ export function planChanges(
   }
   const people = new Set([...codes, ...noteChanges].map((c) => c.employeeId)).size;
   return { visits: visits.length, codes, notes: noteChanges, items, conflicts, unknownSiglas, noDate, alreadyDone, people };
+}
+
+export const conflictKey = (c: { emp: Employee; date: string }) => `${c.emp.id}|${c.date}`;
+
+/**
+ * Añade los sustitutos elegidos para los días en conflicto: se les marca PC y se
+ * les pone la nota de la visita («… · sustituye a XX»). Si el sustituto ya tiene
+ * otra clave ese día, no se toca (igual que en la importación normal).
+ */
+export function withSubstitutes(
+  result: PlanResult, subs: Map<string, Employee>, entries: Map<string, Entry>, notes: Map<string, Note>,
+): PlanResult {
+  if (!subs.size) return result;
+  const codes = [...result.codes];
+  const noteChanges = [...result.notes];
+  const items = [...result.items];
+  for (const c of result.conflicts) {
+    const sub = subs.get(conflictKey(c));
+    if (!sub) continue;
+    const k = `${sub.id}|${c.date}`;
+    const cur = entries.get(k)?.code;
+    if (cur && cur !== PLAN_CODE) continue;
+    const who = c.emp.siglas || c.emp.nombre;
+    const lines = c.lines.map((l) => `${l} · sustituye a ${who}`);
+    const pendingNote = noteChanges.findIndex((n) => n.employeeId === sub.id && n.date === c.date);
+    const existing = pendingNote >= 0 ? noteChanges[pendingNote].text ?? '' : notes.get(k)?.text ?? '';
+    const missing = lines.filter((l) => !existing.includes(l));
+    const setCode = !cur && !codes.some((x) => x.employeeId === sub.id && x.date === c.date);
+    if (setCode) codes.push({ employeeId: sub.id, date: c.date, code: PLAN_CODE });
+    if (missing.length) {
+      const text = [existing, ...missing].filter(Boolean).join('\n');
+      if (pendingNote >= 0) noteChanges[pendingNote] = { ...noteChanges[pendingNote], text };
+      else noteChanges.push({ employeeId: sub.id, date: c.date, text });
+    }
+    if (setCode || missing.length) items.push({ emp: sub, date: c.date, note: missing.join('\n'), setCode, hadNote: !!existing, replaces: c.emp });
+  }
+  items.sort((a, b) => a.date.localeCompare(b.date) || a.emp.nombre.localeCompare(b.emp.nombre));
+  const people = new Set([...codes, ...noteChanges].map((c) => c.employeeId)).size;
+  return { ...result, codes, notes: noteChanges, items, people };
 }

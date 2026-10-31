@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataStore } from './store';
-import type { CellChange, Code, Employee, Entry, LiveEvent, Note, NoteChange } from '../types';
+import { DEFAULT_OPS, type CellChange, type Code, type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type OpsConfig } from '../types';
 
 export const entryKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
 
@@ -32,6 +32,7 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
   const [codes, setCodes] = useState<Code[]>([]);
   const [entries, setEntries] = useState<Map<string, Entry>>(new Map());
   const [notes, setNotes] = useState<Map<string, Note>>(new Map());
+  const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -71,9 +72,13 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     }
   }, [store, onError]);
 
+  const loadSettings = useCallback(async () => {
+    try { setSettings(await store.loadSettings()); } catch { /* se usan los valores por defecto */ }
+  }, [store]);
+
   const reloadAll = useCallback(async () => {
     try {
-      const base = await store.loadBase();
+      const [base] = await Promise.all([store.loadBase(), loadSettings()]);
       setEmployees(base.employees);
       setCodes(base.codes);
       const years = [...loadedYears.current];
@@ -82,7 +87,7 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     } catch (e) {
       onError(`No se pudieron cargar los datos: ${(e as Error).message}`);
     }
-  }, [store, loadYear, onError]);
+  }, [store, loadYear, loadSettings, onError]);
 
   // Carga inicial
   useEffect(() => {
@@ -114,6 +119,7 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
   // Cambios en tiempo real de otros compañeros
   useEffect(() => store.subscribe((ev: LiveEvent) => {
     if (ev.type === 'reload') { reloadAll(); return; }
+    if (ev.type === 'settings') { loadSettings(); return; }
     if (ev.type === 'entry') {
       const k = entryKey(ev.employeeId, ev.date);
       const changed = (entriesRef.current.get(k)?.code ?? null) !== (ev.entry?.code ?? null);
@@ -150,12 +156,23 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
         return ev.code ? [...rest, ev.code] : rest;
       });
     }
-  }), [store, reloadAll]);
+  }), [store, reloadAll, loadSettings]);
 
   const sortedEmployees = useMemo(() => [...employees].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre)), [employees]);
   const sortedCodes = useMemo(() => [...codes].sort((a, b) => a.orden - b.orden), [codes]);
 
   const canEdit = online || store.mode === 'local';
+
+  const ops = useMemo<OpsConfig>(() => {
+    const o = (settings.ops ?? {}) as Partial<OpsConfig>;
+    return { equipos: Array.isArray(o.equipos) ? o.equipos : DEFAULT_OPS.equipos, zonas: o.zonas && typeof o.zonas === 'object' ? o.zonas : {} };
+  }, [settings]);
+
+  /** Guarda los ajustes de operativa (requiere modo admin en el servidor). */
+  const saveOps = useCallback(async (next: OpsConfig, label: string) => {
+    await store.saveSetting('ops', next, label);
+    setSettings((s) => ({ ...s, ops: next }));
+  }, [store]);
 
   /** Aplica cambios: se ven ya y se guardan en segundo plano. Devuelve true si se guardó. */
   const apply = useCallback(async (changes: CellChange[], label: string, opts: { undoable?: boolean } = {}) => {
@@ -328,6 +345,8 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     entries,
     notes,
     loading,
+    ops,
+    saveOps,
     status,
     canEdit,
     flash,

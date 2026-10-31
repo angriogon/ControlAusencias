@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { extractVisits, planChanges, readPlanning, toIsoDate, toTime } from './planningImport';
+import { conflictKey, extractVisits, planChanges, readPlanning, toIsoDate, toTime, withSubstitutes, type PlanVisit } from './planningImport';
 import type { Employee, Entry, Note } from '../types';
 
 const emp = (id: string, nombre: string, siglas: string) => ({ id, nombre, siglas } as Employee);
@@ -12,6 +12,23 @@ describe('planificación: conversiones', () => {
     expect(toTime('0.2916666666666667')).toBe('07:00');
     expect(toTime('0.2708333333333333')).toBe('06:30');
     expect(toTime('7:00')).toBe('07:00');
+  });
+});
+
+describe('planificación: sustitutos', () => {
+  it('el sustituto recibe PC y la nota con «sustituye a»', () => {
+    const people = [emp('a', 'ANA', 'AAA'), emp('b', 'BEA', 'BBB')];
+    const visits: PlanVisit[] = [{ row: 2, date: '2026-11-05', time: '07:00', siglas: ['AAA'], place: 'Tienda 1' }];
+    const entries = new Map<string, Entry>([['a|2026-11-05', { employeeId: 'a', date: '2026-11-05', code: 'V' }]]);
+    const r = planChanges(visits, 'Despliegue', people, entries, new Map());
+    expect(r.conflicts).toHaveLength(1);
+    const s = withSubstitutes(r, new Map([[conflictKey(r.conflicts[0]), people[1]]]), entries, new Map());
+    expect(s.codes).toEqual([{ employeeId: 'b', date: '2026-11-05', code: 'PC' }]);
+    expect(s.notes[0].text).toBe('Despliegue · Tienda 1 · 07:00 · sustituye a AAA');
+    expect(s.items[0].replaces?.id).toBe('a');
+    // Si el sustituto tiene otra clave ese día, no se toca
+    const busy = new Map(entries).set('b|2026-11-05', { employeeId: 'b', date: '2026-11-05', code: 'B' });
+    expect(withSubstitutes(r, new Map([[conflictKey(r.conflicts[0]), people[1]]]), busy, new Map()).codes).toHaveLength(0);
   });
 });
 

@@ -10,6 +10,7 @@ import { Grid, type GridRow, type GroupRow } from '../components/Grid';
 import { Modal, useUi } from '../components/ui';
 import { EmployeeCard } from './EmployeeCard';
 import { PlanningImport } from './PlanningImport';
+import { coverageImpact, type CoverageWarning } from '../lib/ops';
 
 type GroupBy = 'none' | 'equipo' | 'zona' | 'teamLeader' | 'sede';
 const GROUP_LABEL: Record<GroupBy, string> = { none: 'Sin agrupar', equipo: 'Equipo', zona: 'Zona', teamLeader: 'Team leader', sede: 'Sede' };
@@ -19,8 +20,9 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS) ?? '{}'); } catch { return {}; }
 }
 
-export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
+export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onCursor }: {
   data: AppData; onEditEmployee: (e: Employee) => void;
+  onSaveSiglas?: (e: Employee, siglas: string) => Promise<boolean>;
   presence: PresenceUser[]; onCursor: (c: { employeeId: string; date: string } | null) => void;
 }) {
   const t = parseIso(todayIso());
@@ -161,6 +163,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
             presence={presence}
             onCursor={onCursor}
             onOpenEmployee={setCard}
+            onSaveSiglas={onSaveSiglas}
           />
         )}
 
@@ -171,6 +174,7 @@ export function CalendarView({ data, onEditEmployee, presence, onCursor }: {
           codes={data.codes.filter((c) => c.activo)}
           month={ym}
           existing={(id, d) => data.entries.get(entryKey(id, d))?.code ?? null}
+          impact={(c) => coverageImpact(c, data.employees, data.entries, data.codes, data.ops)}
           onClose={() => setPeriod(false)}
           onApply={async (changes, label) => { if (await data.apply(changes, label)) setPeriod(false); }}
         />
@@ -202,9 +206,10 @@ function Legend({ codes, used }: { codes: Code[]; used: Set<string> }) {
 }
 
 /** Para marcar vacaciones de X a Y, festivos para todo un equipo, etc. sin arrastrar. */
-function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
+function PeriodDialog({ employees, codes, month, existing, impact, onClose, onApply }: {
   employees: Employee[]; codes: Code[]; month: { y: number; m: number };
   existing: (id: string, date: string) => string | null;
+  impact: (changes: CellChange[]) => CoverageWarning[];
   onClose: () => void; onApply: (c: CellChange[], label: string) => void;
 }) {
   const { toast } = useUi();
@@ -234,6 +239,9 @@ function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
   const tooLong = from && to && dateRange(from, to).length >= 1000;
   const people = new Set(changes.map((c) => c.employeeId)).size;
   const needsAdmin = people > MASS_PEOPLE_LIMIT && !admin.active;
+  const coverage = useMemo(() => (changes.length && changes.length < 3000 ? impact(changes) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [who, from, to, code, skipWeekends, overwrite]);
 
   const submit = async () => {
     if (!changes.length) { toast('No hay nada que marcar con esas opciones', 'info'); return; }
@@ -281,6 +289,16 @@ function PeriodDialog({ employees, codes, month, existing, onClose, onApply }: {
               {protectedHits.slice(0, 40).map((h) => <li key={`${h.emp.id}${h.date}`}>{h.code} · {formatDate(h.date)}{targets.length > 1 ? ` · ${h.emp.nombre}` : ''}</li>)}
               {protectedHits.length > 40 && <li>… y {protectedHits.length - 40} más</li>}
             </ul>
+          </div>
+        )}
+        {coverage.length > 0 && (
+          <div className="warn-box" role="alert">
+            <b>⚠ Con este periodo, {coverage.length === 1 ? 'una zona se queda' : `${coverage.length} días de zona se quedan`} por debajo del mínimo de técnicos:</b>
+            <ul>
+              {coverage.slice(0, 20).map((w) => <li key={`${w.zona}${w.date}`}><b>{w.zona}</b> · {formatDate(w.date)} · {w.working} trabajando (mínimo {w.min})</li>)}
+              {coverage.length > 20 && <li>… y {coverage.length - 20} más</li>}
+            </ul>
+            <span className="small">Se puede marcar igualmente; revisa la cobertura en Operativa.</span>
           </div>
         )}
         {needsAdmin && <p className="warn-box">🔒 Afecta a {people} personas: al confirmar se pedirá la contraseña de administrador.</p>}

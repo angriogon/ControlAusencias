@@ -26,7 +26,7 @@ export function Modal({ title, onClose, children, footer, wide }: {
 }
 
 // ---------------- Avisos (toasts) ----------------
-interface Toast { id: number; text: string; kind: 'ok' | 'error' | 'info'; action?: { label: string; run: () => void } }
+interface Toast { id: number; text: string; kind: 'ok' | 'error' | 'info' | 'warn'; action?: { label: string; run: () => void } }
 interface Ui {
   toast: (text: string, kind?: Toast['kind'], action?: Toast['action']) => void;
   confirm: (o: ConfirmOpts) => Promise<boolean>;
@@ -44,7 +44,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const toast = useCallback<Ui['toast']>((text, kind = 'ok', action) => {
     const id = ++seq.current;
     setToasts((t) => [...t.slice(-3), { id, text, kind, action }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 7000 : kind === 'error' ? 8000 : 3500);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 9000 : kind === 'error' || kind === 'warn' ? 8000 : 3500);
   }, []);
 
   const confirm = useCallback<Ui['confirm']>((o) => new Promise((resolve) => setDialog({ ...o, resolve })), []);
