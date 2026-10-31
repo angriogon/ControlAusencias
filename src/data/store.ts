@@ -1,5 +1,5 @@
 import type {
-  AdminStatus, AppUser, CellChange, Note, NoteChange, PresenceUser, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
+  AdminStatus, AppUser, UserProfile, CellChange, Note, NoteChange, PresenceUser, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
 } from '../types';
 
 /**
@@ -29,6 +29,15 @@ export interface DataStore {
   saveCode(c: Code): Promise<void>;
   /** Borrado definitivo de una persona y todas sus marcas (se puede revertir desde historial). */
   deleteEmployee(id: string): Promise<void>;
+
+  // Ajustes compartidos (zonas, equipos de campo…): clave → JSON
+  loadSettings(): Promise<Record<string, unknown>>;
+  /** Requiere modo administrador. */
+  saveSetting(key: string, value: unknown, label: string): Promise<void>;
+
+  // Usuarios y roles (solo rol admin)
+  listProfiles(): Promise<UserProfile[]>;
+  setUserRole(id: string, role: UserProfile['role']): Promise<void>;
 
   // Historial
   listChanges(f: ChangeFilter): Promise<ChangeLog[]>;

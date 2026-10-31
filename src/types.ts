@@ -128,6 +128,7 @@ export type LiveEvent =
   | { type: 'note'; note: Note | null; employeeId: string; date: string }
   | { type: 'employee'; employee: Employee | null; id: string }
   | { type: 'code'; code: Code | null; key: string }
+  | { type: 'settings' }
   | { type: 'reload' };
 
 /** Compañero conectado y la celda en la que está (si está en el calendario). */
@@ -145,6 +146,31 @@ export interface AdminStatus {
   until: string | null;
   /** ¿Puedo crear/cambiar la contraseña? (rol admin en Supabase) */
   canManage: boolean;
+}
+
+/** Ajustes de una zona para la operativa. */
+export interface ZoneConfig {
+  /** Técnicos que deben estar trabajando como mínimo (por defecto 1). */
+  minimo: number;
+  /** Zonas desde las que se puede cubrir esta (para «¿Quién puede ir?»). */
+  vecinas: string[];
+}
+
+/** Ajustes compartidos de la operativa (se guardan en el servidor). */
+export interface OpsConfig {
+  /** Equipos que cuentan como técnicos de campo para cobertura y carga. */
+  equipos: string[];
+  zonas: Record<string, ZoneConfig>;
+}
+
+export const DEFAULT_OPS: OpsConfig = { equipos: ['TEC.P', 'TEC.P.EX', 'COLAB'], zonas: {} };
+
+/** Usuario de la app (para gestionar roles). */
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: AppUser['role'];
 }
 
 /** Claves que nunca se pisan en cambios de varias celdas o periodos. */

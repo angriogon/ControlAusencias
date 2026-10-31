@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DataStore } from '../data/store';
 import type { AppData } from '../data/useAppData';
-import type { AppUser, Code, Employee } from '../types';
+import type { AppUser, Code, Employee, OpsConfig, UserProfile } from '../types';
+import { fieldStaff, zonesOf } from '../lib/ops';
 import { Modal, useUi } from '../components/ui';
 import { matches } from '../lib/search';
 import { fillSiglas, makeSiglas, normSiglas } from '../lib/siglas';
@@ -18,7 +19,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
   editing: Employee | null; setEditing: (e: Employee | null) => void;
 }) {
   const { toast, confirm } = useUi();
-  const [tab, setTab] = useState<'people' | 'codes' | 'admin'>('people');
+  const [tab, setTab] = useState<'people' | 'codes' | 'zones' | 'users' | 'admin'>('people');
   const [q, setQ] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [codeEdit, setCodeEdit] = useState<Code | null>(null);
@@ -95,15 +96,19 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
         <div className="seg">
           <button className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')}>Personas ({data.employees.filter((e) => e.activo).length})</button>
           <button className={tab === 'codes' ? 'on' : ''} onClick={() => setTab('codes')}>Claves ({data.codes.length})</button>
+          <button className={tab === 'zones' ? 'on' : ''} onClick={() => setTab('zones')}>Zonas</button>
+          {admin.status.canManage && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Usuarios</button>}
           {admin.status.canManage && <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>🔒 Contraseña admin</button>}
         </div>
       </div>
 
-      {tab !== 'admin' && !admin.active && (
+      {(tab === 'people' || tab === 'codes') && !admin.active && (
         <div className="panel"><AdminGate what="Añadir, editar u ocultar personas y claves">{null}</AdminGate></div>
       )}
 
       {tab === 'admin' && <AdminPasswordPanel />}
+      {tab === 'zones' && <ZonesPanel data={data} />}
+      {tab === 'users' && <UsersPanel store={store} user={user} />}
 
       {tab === 'people' && (
         <section className="panel">
@@ -306,6 +311,128 @@ function AdminPasswordPanel() {
         {error && <p className="error">{error}</p>}
         <div><button className="primary" disabled={busy || next.length < 8 || (configured && !current)} onClick={save}>{busy ? 'Guardando…' : 'Guardar contraseña'}</button></div>
       </div>
+    </section>
+  );
+}
+
+/** Equipos de campo, mínimo de técnicos por zona y zonas vecinas (para la Operativa). */
+function ZonesPanel({ data }: { data: AppData }) {
+  const { toast } = useUi();
+  const admin = useAdmin();
+  const [cfg, setCfg] = useState<OpsConfig>(data.ops);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setCfg(data.ops), [data.ops]);
+  const equipos = useMemo(() => [...new Set(data.employees.filter((e) => e.activo).map((e) => e.equipo).filter(Boolean))].sort(), [data.employees]);
+  const staff = useMemo(() => fieldStaff(data.employees, cfg), [data.employees, cfg]);
+  const zones = useMemo(() => zonesOf(staff), [staff]);
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(data.ops);
+  const zc = (z: string) => cfg.zonas[z] ?? { minimo: 1, vecinas: [] };
+  const setZone = (z: string, v: Partial<{ minimo: number; vecinas: string[] }>) => setCfg((c) => ({ ...c, zonas: { ...c.zonas, [z]: { ...zc(z), ...v } } }));
+  const toggleVecina = (z: string, v: string, on: boolean) => {
+    setZone(z, { vecinas: on ? [...new Set([...zc(z).vecinas, v])] : zc(z).vecinas.filter((x) => x !== v) });
+    // La vecindad es mutua: si Sev cubre Cad, Cad también cubre Sev
+    setCfg((c) => {
+      const o = c.zonas[v] ?? { minimo: 1, vecinas: [] };
+      const vec = on ? [...new Set([...o.vecinas, z])] : o.vecinas.filter((x) => x !== z);
+      return { ...c, zonas: { ...c.zonas, [v]: { ...o, vecinas: vec } } };
+    });
+  };
+  const save = async () => {
+    if (!(await admin.requestAdmin('Cambiar las zonas requiere el modo administrador.'))) return;
+    setBusy(true);
+    try { await data.saveOps(cfg, 'Ajustes de zonas y equipos de campo'); toast('Zonas guardadas'); }
+    catch (e) { toast((e as Error).message, 'error'); } finally { setBusy(false); }
+  };
+  const count = (z: string) => staff.filter((e) => (e.zona || '(sin zona)') === z).length;
+
+  return (
+    <section className="panel">
+      <h2>Zonas y técnicos de campo</h2>
+      <p className="muted small">
+        Lo usa la pestaña <b>Operativa</b>: cobertura, avisos al marcar ausencias y «¿Quién puede ir?». El <b>mínimo</b> es cuántos técnicos deben
+        estar trabajando en la zona (si la zona tiene menos, se usa el total). Las <b>vecinas</b> son las zonas desde las que se puede cubrir.
+      </p>
+      <fieldset className="equipos" disabled={!data.canEdit}>
+        <legend>Equipos que cuentan como técnicos de campo</legend>
+        {equipos.map((q) => (
+          <label key={q} className="check">
+            <input type="checkbox" checked={cfg.equipos.includes(q)}
+              onChange={(e) => setCfg((c) => ({ ...c, equipos: e.target.checked ? [...c.equipos, q] : c.equipos.filter((x) => x !== q) }))} />
+            {q}
+          </label>
+        ))}
+      </fieldset>
+      <table className="table">
+        <thead><tr><th>Zona</th><th className="num">Técnicos</th><th>Mínimo</th><th>Zonas vecinas</th></tr></thead>
+        <tbody>
+          {zones.map((z) => (
+            <tr key={z}>
+              <td><b>{z}</b></td>
+              <td className="num">{count(z)}</td>
+              <td><input type="number" min={0} max={count(z)} value={zc(z).minimo} style={{ width: 70 }} disabled={!data.canEdit}
+                onChange={(e) => setZone(z, { minimo: Math.max(0, Number(e.target.value) || 0) })} /></td>
+              <td>
+                <details>
+                  <summary>{zc(z).vecinas.length ? zc(z).vecinas.join(', ') : 'Ninguna'}</summary>
+                  <div className="vecinas">
+                    {zones.filter((x) => x !== z).map((v) => (
+                      <label key={v} className="check small"><input type="checkbox" disabled={!data.canEdit} checked={zc(z).vecinas.includes(v)} onChange={(e) => toggleVecina(z, v, e.target.checked)} /> {v}</label>
+                    ))}
+                  </div>
+                </details>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="modal-actions">
+        {dirty && <button onClick={() => setCfg(data.ops)}>Descartar</button>}
+        <button className="primary" disabled={!dirty || busy || !data.canEdit} onClick={save}>{busy ? 'Guardando…' : `${admin.active ? '' : '🔒 '}Guardar zonas`}</button>
+      </div>
+    </section>
+  );
+}
+
+const ROLE_LABEL: Record<UserProfile['role'], string> = { admin: 'Administrador', editor: 'Editor (marca días)', lector: 'Solo consulta' };
+
+/** Roles de los usuarios (solo para el rol administrador). */
+function UsersPanel({ store, user }: { store: DataStore; user: AppUser }) {
+  const { toast } = useUi();
+  const admin = useAdmin();
+  const [list, setList] = useState<UserProfile[] | null>(null);
+  const load = () => store.listProfiles().then(setList).catch((e) => toast((e as Error).message, 'error'));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [store]);
+  const change = async (u: UserProfile, role: UserProfile['role']) => {
+    if (!(await admin.requestAdmin('Cambiar roles requiere el modo administrador.'))) return;
+    try { await store.setUserRole(u.id, role); toast(`${u.name}: ${ROLE_LABEL[role]}`); load(); }
+    catch (e) { toast((e as Error).message, 'error'); }
+  };
+  return (
+    <section className="panel">
+      <h2>Usuarios y roles</h2>
+      <div className="warn-box small">
+        <b>Dar de alta a alguien:</b> Supabase → Authentication → Users → <i>Add user</i> (correo y contraseña; en «User metadata»
+        <code>{' {"name": "Nombre Apellido"} '}</code>para que el historial muestre su nombre). Entra con rol <b>Editor</b>; cámbialo aquí.
+        <br />Recomendado: <b>dispatchers</b> = Editor · <b>técnicos y responsables</b> = Solo consulta · tú = Administrador.
+      </div>
+      {!list ? <p className="muted">Cargando…</p> : (
+        <table className="table">
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead>
+          <tbody>
+            {list.map((u) => (
+              <tr key={u.id}>
+                <td><b>{u.name}</b>{u.email === user.email && <span className="tag">tú</span>}</td>
+                <td>{u.email}</td>
+                <td>
+                  <select value={u.role} onChange={(e) => change(u, e.target.value as UserProfile['role'])} disabled={store.mode === 'local'}>
+                    {(Object.keys(ROLE_LABEL) as UserProfile['role'][]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }

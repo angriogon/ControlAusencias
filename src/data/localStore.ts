@@ -1,7 +1,7 @@
 import type { DataStore } from './store';
 import {
   AdminRequiredError, ConflictError, MASS_PEOPLE_LIMIT,
-  type AdminStatus, type PresenceUser,
+  type AdminStatus, type PresenceUser, type UserProfile,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
   type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
 } from '../types';
@@ -231,6 +231,28 @@ export class LocalStore implements DataStore {
     }
     ops.push({ kind: 'employee', id, value: null });
     await this.write(ops, `Elimina a ${emp?.nombre ?? 'persona'}`);
+  }
+
+  // ---------- ajustes y usuarios ----------
+  async loadSettings() {
+    return (await idbGet<Record<string, unknown>>('settings')) ?? {};
+  }
+
+  async saveSetting(key: string, value: unknown, label: string) {
+    this.requireAdmin('Cambiar los ajustes de operativa');
+    const all = await this.loadSettings();
+    await idbSet('settings', { ...all, [key]: value });
+    this.state.changes.push(this.log(new Date().toISOString(), this.userName(), 'system', null, null, null, null, crypto.randomUUID(), label, null));
+    await this.persist();
+  }
+
+  async listProfiles(): Promise<UserProfile[]> {
+    const name = this.userName();
+    return [{ id: name, name, email: '', role: 'admin' }];
+  }
+
+  async setUserRole() {
+    throw new Error('En modo local solo hay un usuario.');
   }
 
   // ---------- historial ----------

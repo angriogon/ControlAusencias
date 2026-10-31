@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataStore } from './data/store';
 import { createStore } from './data';
 import { useAppData } from './data/useAppData';
-import type { AppUser, Employee, PresenceUser } from './types';
+import type { AppUser, CellChange, Employee, PresenceUser } from './types';
+import { coverageImpact } from './lib/ops';
+import { formatDate } from './lib/dates';
+import { normSiglas } from './lib/siglas';
+import { OpsView } from './views/OpsView';
+import { HelpDialog } from './views/HelpDialog';
 import { AdminProvider, useAdmin, hhmm } from './components/admin';
 import { initials } from './lib/colors';
 import { UiProvider, useUi } from './components/ui';
@@ -15,9 +20,10 @@ import { Login } from './views/Login';
 import { MobileApp } from './mobile/MobileApp';
 import { useIdleLogout, useIsSmallScreen } from './mobile/mobileUtils';
 
-type Tab = 'calendar' | 'summary' | 'history' | 'data' | 'settings';
+type Tab = 'calendar' | 'ops' | 'summary' | 'history' | 'data' | 'settings';
 const TABS: [Tab, string][] = [
   ['calendar', '📅 Calendario'],
+  ['ops', '🧭 Operativa'],
   ['summary', '📊 Resumen'],
   ['history', '🕘 Historial'],
   ['data', '💾 Copias y Excel'],
@@ -51,24 +57,41 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem('ca-tab') as Tab) || 'calendar');
   const [editing, setEditing] = useState<Employee | null>(null);
   const [online, setOnline] = useState<PresenceUser[]>([]);
+  const [help, setHelp] = useState(false);
   const admin = useAdmin();
   const onError = useCallback((m: string) => toast(m, 'error',
     m.includes('modo administrador') ? { label: 'Activar modo admin', run: () => { admin.requestAdmin(); } } : undefined), [toast, admin]);
   const data = useAppData(store, onError);
   const readOnly = user.role === 'lector';
+
+  // Aviso (sin bloquear) cuando un cambio deja una zona por debajo de su mínimo de técnicos
+  const withCoverageCheck = useCallback(<A extends unknown[]>(fn: (cells: CellChange[], ...rest: A) => Promise<boolean>) =>
+    async (cells: CellChange[], ...rest: A) => {
+      const warnings = coverageImpact(cells, data.employees, data.entries, data.codes, data.ops);
+      const ok = await fn(cells, ...rest);
+      if (ok && warnings.length) {
+        const list = warnings.slice(0, 4).map((w) => `${w.zona} el ${formatDate(w.date).slice(0, 5)} (${w.working} de mín. ${w.min})`).join(', ');
+        toast(`⚠ Zona por debajo del mínimo de técnicos: ${list}${warnings.length > 4 ? ` y ${warnings.length - 4} más` : ''}.`, 'warn', {
+          label: 'Ver cobertura',
+          run: () => { try { localStorage.setItem('ca-ops-sub', 'cobertura'); } catch { /* */ } setTab('ops'); },
+        });
+      }
+      return ok;
+    }, [data.employees, data.entries, data.codes, data.ops, toast]);
+
   const effective = useMemo(() => ({
     ...data,
     canEdit: data.canEdit && !readOnly,
     apply: readOnly
       ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
-      : data.apply,
+      : withCoverageCheck(data.apply),
     saveNote: readOnly
       ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
       : data.saveNote,
     applyCombined: readOnly
       ? async () => { toast('Tu usuario es de solo lectura', 'error'); return false; }
-      : data.applyCombined,
-  }), [data, readOnly, toast]);
+      : withCoverageCheck(data.applyCombined),
+  }), [data, readOnly, toast, withCoverageCheck]);
 
   useEffect(() => { try { localStorage.setItem('ca-tab', tab); } catch { /* */ } }, [tab]);
   useEffect(() => store.onPresence?.(setOnline), [store]);
@@ -103,6 +126,22 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     } catch (err) { toast((err as Error).message, 'error'); }
   };
 
+  // Modo admin: siglas editadas directamente en la celda del calendario
+  const employeesRef = useRef(data.employees);
+  employeesRef.current = data.employees;
+  const saveSiglas = useCallback(async (e: Employee, raw: string) => {
+    const siglas = normSiglas(raw);
+    const dupe = siglas && employeesRef.current.find((o) => o.id !== e.id && normSiglas(o.siglas ?? '') === siglas);
+    if (dupe) { toast(`Las siglas ${siglas} ya las tiene ${dupe.nombre}`, 'error'); return false; }
+    try {
+      const next = { ...e, siglas };
+      await store.saveEmployee(next);
+      data.setEmployees((prev) => [...prev.filter((x) => x.id !== e.id), next]);
+      toast(siglas ? `Siglas de ${e.nombre}: ${siglas}` : `Siglas de ${e.nombre} borradas`);
+      return true;
+    } catch (err) { toast((err as Error).message, 'error'); return false; }
+  }, [store, toast, data.setEmployees]);
+
   const others = useMemo(() => online.filter((u) => u.key !== 'me'), [online]);
 
   // Móvil: vista propia (consulta + edición de un día) y sesión que caduca a las 8 h sin uso
@@ -133,6 +172,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
           ))}
         </nav>
         <div className="topbar-right">
+          <button className="help-btn" onClick={() => setHelp(true)} title="Guía rápida" aria-label="Ayuda">?</button>
           <button className="undo-btn" onClick={undo} disabled={!data.undoSize} title="Deshacer mi último cambio (Ctrl+Z)">↶ Deshacer</button>
           <span className={`status ${data.status}`} title="Los cambios se guardan solos al momento">{statusText}</span>
           {others.length > 0 && (
@@ -176,8 +216,10 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
                 presence={others}
                 onCursor={(c) => store.setCursor?.(c)}
                 onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }}
+                onSaveSiglas={readOnly ? undefined : saveSiglas}
               />
             )}
+            {tab === 'ops' && <OpsView store={store} data={effective} user={user} onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }} />}
             {tab === 'summary' && <SummaryView data={effective} />}
             {tab === 'history' && <HistoryView store={store} data={effective} />}
             {tab === 'data' && <DataView store={store} data={effective} user={user} />}
@@ -186,6 +228,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         )}
       </main>
 
+      {help && <HelpDialog onClose={() => setHelp(false)} />}
       {editing && tab !== 'settings' && admin.active && (
         <EmployeeForm initial={editing} isNew={false} others={data.employees} onClose={() => setEditing(null)} onSave={saveEditing} />
       )}

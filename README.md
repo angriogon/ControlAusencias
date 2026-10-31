@@ -22,8 +22,22 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 - **Compañeros**: se ve en qué celda está cada uno (recuadro de color con sus iniciales).
 - **📥 Importar planificación** (calendario): carga el Excel de la planificación (fecha, hora, lugar y siglas en «Siglas» o «Empresa instaladora»). Marca **PC** con una nota «motivo · lugar · hora»; si el día tiene otra clave no se toca y se avisa en rojo; si ya tenía PC solo añade la nota. Se cruza por las **siglas** de cada persona (Ajustes). Ctrl+Z deshace la importación entera.
 - **🔒 Modo administrador** (botón arriba, contraseña compartida, dura 4 h): necesario para importar, restaurar copias, gestionar personas y claves, y cambios a más de 5 personas a la vez. La contraseña se crea en Ajustes → Contraseña admin (usuarios con rol admin).
-- **Vacaciones de X a Y o festivo para todos**: botón **＋ Marcar periodo**.
+- **Vacaciones de X a Y o festivo para todos**: botón **＋ Marcar periodo**. Avisa antes si el periodo deja alguna zona por debajo de su mínimo de técnicos.
+- **Siglas**: en modo administrador, clic en la celda de siglas del calendario para editarlas ahí mismo (Enter guarda, Esc cancela; no deja repetir siglas).
+- **Sustitutos en la planificación**: si un día planificado choca con otra clave (vacaciones, baja…), se puede elegir un sustituto disponible; se le marca PC con la nota «… · sustituye a XX».
 - **Borrar**: selecciona y pulsa `Supr`, o «Vaciar celda(s)» en la paleta.
+- **🧭 Operativa** (pestaña para dispatch, sobre los técnicos de campo: equipos configurables en Ajustes → Zonas):
+  - **Centro de mando**: hoy o el siguiente laborable, zona a zona: quién trabaja, quién falta y por qué, quién está en cliente; alertas (zonas sin cubrir en los próximos 10 laborables, bajas de 5 días o más, vacaciones pendientes a fin de año) y novedades de otros compañeros.
+  - **Cobertura**: semáforo zonas × días (1, 2 o 4 semanas). 🟢 cubierta · 🟡 justa (en el mínimo) · 🔴 sin cubrir · ⚪ festivo (FN/FL).
+  - **¿Quién puede ir?**: zona + día → disponibles, primero de la zona, luego zonas vecinas y, si no hay nadie, del resto; libres antes que en cliente y con menos carga de PC esa semana/mes.
+  - **Carga**: días de PC por técnico (media jornada = 0,5) frente a la mediana de su zona, con TS y TF.
+  - **Saldos**: vacaciones y VP pendientes, festivos/sábados trabajados (TF+TS) frente a libres (Lf+Lh, informativo), bajas y PC.
+  - **Revisar datos**: fichas sin siglas, zona, equipo o días de vacaciones y claves «a revisar».
+  - **📄 Informe mensual (Excel)**: zonas (absentismo por tipo, PC, días sin cubrir), cobertura día a día, personas y saldos del año.
+  - Reglas: «fuera» = clave de tipo ausencia; FN/FL = festivo; PC = trabajando en cliente; el resto de claves = disponible. Fines de semana no cuentan. Al marcar una ausencia que deja una zona bajo su mínimo, sale un aviso amarillo (no bloquea).
+- **Ajustes → Zonas** (modo admin): equipos que son «técnicos de campo», mínimo de técnicos por zona (por defecto 1) y zonas vecinas (la vecindad es mutua).
+- **Ajustes → Usuarios** (rol admin + modo admin): cambiar el rol de cada usuario (Administrador / Editor / Solo consulta). Siempre queda al menos un administrador.
+- **❓** arriba: guía rápida de una pantalla.
 - **Me he equivocado**: `Ctrl+Z` o botón **↶ Deshacer** arriba. Para cambios de otros o más antiguos: pestaña **Historial**.
 - `Ctrl+C` / `Ctrl+V` funcionan como en Excel (también pegando desde Excel).
 - **Notas** (como las del Excel): las celdas con nota llevan un triángulo rojo en la esquina; se leen pasando el ratón y se escriben o borran desde la paleta («📝 Añadir nota a este día»). Una celda puede tener nota aunque no tenga clave. Quedan en el historial y se pueden deshacer.

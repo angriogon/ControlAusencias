@@ -3,7 +3,7 @@ import type { DataStore } from './store';
 import { colorForName } from '../lib/colors';
 import {
   AdminRequiredError, ConflictError,
-  type AdminStatus, type PresenceUser,
+  type AdminStatus, type PresenceUser, type UserProfile,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
   type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
 } from '../types';
@@ -225,6 +225,34 @@ export class SupabaseStore implements DataStore {
     fail(error);
   }
 
+  // ---------- ajustes y usuarios ----------
+  async loadSettings() {
+    const { data, error } = await this.sb.from('app_settings').select('key, value');
+    // Si la migración 007 aún no está aplicada, la app funciona con los valores por defecto
+    if (error) return {};
+    return Object.fromEntries((data as Row[]).map((r) => [r.key as string, r.value]));
+  }
+
+  async saveSetting(key: string, value: unknown, label: string) {
+    const { error } = await this.sb.rpc('save_setting', { p_key: key, p_value: value, p_label: label });
+    fail(error);
+  }
+
+  async listProfiles(): Promise<UserProfile[]> {
+    const { data, error } = await this.sb.from('profiles').select('id, email, display_name, role').order('display_name');
+    fail(error);
+    return (data as Row[]).map((r) => ({
+      id: r.id as string, email: (r.email as string) ?? '',
+      name: (r.display_name as string) || ((r.email as string) ?? '').split('@')[0],
+      role: r.role as UserProfile['role'],
+    }));
+  }
+
+  async setUserRole(id: string, role: UserProfile['role']) {
+    const { error } = await this.sb.rpc('set_user_role', { p_id: id, p_role: role });
+    fail(error);
+  }
+
   // ---------- historial ----------
   async listChanges(f: ChangeFilter) {
     let q = this.sb.from('change_log').select('*').order('id', { ascending: false }).limit(f.limit);
@@ -331,6 +359,7 @@ export class SupabaseStore implements DataStore {
         const row = (p.eventType === 'DELETE' ? p.old : p.new) as Row;
         cb({ type: 'code', code: p.eventType === 'DELETE' ? null : codeFromRow(row), key: row.code as string });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, () => cb({ type: 'settings' }))
       .subscribe((status) => {
         // Si se corta la conexión y vuelve, se recarga todo para no perder nada.
         if (status === 'SUBSCRIBED') {

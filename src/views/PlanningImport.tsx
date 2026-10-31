@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AppData } from '../data/useAppData';
 import { MASS_PEOPLE_LIMIT } from '../types';
 import { formatDate } from '../lib/dates';
-import { PLAN_CODE, extractVisits, guessColumns, planChanges, readPlanning, type PlanColumns, type PlanSheet } from '../lib/planningImport';
+import { PLAN_CODE, conflictKey, extractVisits, guessColumns, planChanges, readPlanning, withSubstitutes, type PlanColumns, type PlanSheet } from '../lib/planningImport';
+import { absenceSet, candidates, fieldStaff } from '../lib/ops';
+import type { Employee } from '../types';
 import { Modal, useUi } from '../components/ui';
 import { useAdmin } from '../components/admin';
 
@@ -21,6 +23,8 @@ export function PlanningImport({ data, onClose }: { data: AppData; onClose: () =
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [yearsReady, setYearsReady] = useState(false);
+  /** Sustituto elegido para cada día en conflicto (clave persona|fecha). */
+  const [subs, setSubs] = useState<Map<string, Employee>>(new Map());
 
   const sheet = sheets[sheetIdx];
 
@@ -48,10 +52,22 @@ export function PlanningImport({ data, onClose }: { data: AppData; onClose: () =
     Promise.all(years.map((y) => data.loadYear(y))).then(() => setYearsReady(true));
   }, [visits, data.loadYear]);
 
-  const result = useMemo(
+  const base = useMemo(
     () => (yearsReady ? planChanges(visits, motivo, data.employees.filter((e) => e.activo), data.entries, data.notes) : null),
     [yearsReady, visits, motivo, data.employees, data.entries, data.notes],
   );
+  const result = useMemo(() => (base ? withSubstitutes(base, subs, data.entries, data.notes) : null), [base, subs, data.entries, data.notes]);
+
+  // Candidatos para cubrir cada conflicto: de su zona y vecinas primero, menos carga primero
+  const staff = useMemo(() => fieldStaff(data.employees, data.ops), [data.employees, data.ops]);
+  const absence = useMemo(() => absenceSet(data.codes), [data.codes]);
+  const subOptions = (c: { emp: Employee; date: string }) => {
+    const planned = new Set((base?.items ?? []).filter((i) => i.date === c.date).map((i) => i.emp.id));
+    return candidates(c.emp.zona || '(sin zona)', c.date, staff, data.entries, data.notes, absence, data.ops, { allZones: true, exclude: new Set([c.emp.id]) })
+      .sort((a, b) => Number(planned.has(a.emp.id)) - Number(planned.has(b.emp.id)))
+      .slice(0, 12)
+      .map((x) => ({ ...x, planned: planned.has(x.emp.id) }));
+  };
 
   const apply = async () => {
     if (!result || !motivo.trim()) return;
@@ -147,11 +163,35 @@ export function PlanningImport({ data, onClose }: { data: AppData; onClose: () =
 
               {result.conflicts.length > 0 && (
                 <div className="danger-box" role="alert">
-                  <b>⚠ {result.conflicts.length} día(s) ya tienen otra clave. No se tocarán; revísalos:</b>
-                  <ul>
-                    {result.conflicts.map((c) => (
-                      <li key={`${c.emp.id}${c.date}`}><b>{c.code}</b> · {formatDate(c.date)} · {c.emp.siglas} {c.emp.nombre} — planificado: {c.visit}</li>
-                    ))}
+                  <b>⚠ {result.conflicts.length} día(s) ya tienen otra clave. No se tocarán; puedes elegir un sustituto:</b>
+                  <ul className="conflicts">
+                    {result.conflicts.map((c) => {
+                      const key = conflictKey(c);
+                      const opts = subOptions(c);
+                      return (
+                        <li key={key}>
+                          <div><b>{c.code}</b> · {formatDate(c.date)} · {c.emp.siglas} {c.emp.nombre} — planificado: {c.visit}</div>
+                          <select
+                            value={subs.get(key)?.id ?? ''}
+                            aria-label={`Sustituto de ${c.emp.nombre} el ${formatDate(c.date)}`}
+                            onChange={(e) => setSubs((m) => {
+                              const n = new Map(m);
+                              const emp = opts.find((o) => o.emp.id === e.target.value)?.emp;
+                              if (emp) n.set(key, emp); else n.delete(key);
+                              return n;
+                            })}
+                          >
+                            <option value="">— Sin sustituto (no se marca) —</option>
+                            {opts.map((o) => (
+                              <option key={o.emp.id} value={o.emp.id}>
+                                {o.emp.siglas || '—'} {o.emp.nombre} · {o.emp.zona} · {o.status === 'libre' ? 'libre' : 'en cliente'} · PC semana {o.weekLoad}{o.planned ? ' · ya va otra visita ese día' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {!opts.length && <span className="small"> No hay nadie disponible ese día.</span>}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -174,7 +214,7 @@ export function PlanningImport({ data, onClose }: { data: AppData; onClose: () =
                       {result.items.slice(0, 200).map((it) => (
                         <tr key={`${it.emp.id}${it.date}`}>
                           <td className="nowrap">{formatDate(it.date)}</td>
-                          <td><b>{it.emp.siglas}</b> {it.emp.nombre}</td>
+                          <td><b>{it.emp.siglas}</b> {it.emp.nombre}{it.replaces && <span className="tag">sustituye a {it.replaces.siglas || it.replaces.nombre}</span>}</td>
                           <td>{it.setCode ? PLAN_CODE : <span className="muted">ya {PLAN_CODE}</span>}</td>
                           <td className="small">{it.note || <span className="muted">—</span>}{it.hadNote && <span className="tag gray">se añade a la nota existente</span>}</td>
                         </tr>
