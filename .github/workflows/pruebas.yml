@@ -1,0 +1,33 @@
+name: Pruebas
+
+# Comprueba cada pull request ANTES de fusionarla: tipos, pruebas y compilación.
+# (La publicación en Pages vuelve a pasarlas al llegar a main.)
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos (TypeScript)
+        run: npx tsc -b
+      - name: Pruebas
+        run: npm test
+      - name: Compilación
+        # Sin claves de Supabase: compila en modo local, solo para comprobar que el código construye
+        run: npx vite build

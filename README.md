@@ -70,6 +70,8 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 7. Entra en la app como admin → **Copias y Excel → Importar el Excel antiguo** → elige el `.xlsm`. Verás un resumen y avisos antes de confirmar.
 8. (Opcional, recomendado) Copia automática diaria: activa la extensión `pg_cron` y ejecuta las dos líneas del final del SQL.
 
+> Antes de abrir la app al equipo: [lista de comprobación de puesta en marcha](docs/PUESTA_EN_MARCHA.md).
+
 ## Publicar en GitHub Pages
 
 El workflow `.github/workflows/deploy.yml` compila y publica en cada push a `main`.
