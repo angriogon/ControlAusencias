@@ -20,8 +20,9 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS) ?? '{}'); } catch { return {}; }
 }
 
-export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onCursor }: {
+export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onCursor, focus }: {
   data: AppData; onEditEmployee: (e: Employee) => void;
+  focus?: { employeeId: string; date: string; n: number } | null;
   onSaveSiglas?: (e: Employee, siglas: string) => Promise<boolean>;
   presence: PresenceUser[]; onCursor: (c: { employeeId: string; date: string } | null) => void;
 }) {
@@ -43,6 +44,14 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
   }, [equipo, zona, tl, groupBy, showLegend]);
 
   useEffect(() => { data.loadYear(ym.y); }, [ym.y, data.loadYear]);
+
+  // Ir a una celda (desde la agenda): su mes y sin filtros que la oculten
+  useEffect(() => {
+    if (!focus) return;
+    const f = parseIso(focus.date);
+    setYm({ y: f.y, m: f.m0 });
+    setQ(''); setEquipo(''); setZona(''); setTl('');
+  }, [focus?.n]);
 
   const days = useMemo(() => monthDays(ym.y, ym.m), [ym.y, ym.m]);
   const codeByKey = useMemo(() => codeMap(data.codes), [data.codes]);
@@ -164,6 +173,8 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
             onCursor={onCursor}
             onOpenEmployee={setCard}
             onSaveSiglas={onSaveSiglas}
+            focus={focus}
+            ensureYears={async (ys) => { await Promise.all(ys.map((y) => data.loadYear(y))); }}
           />
         )}
 

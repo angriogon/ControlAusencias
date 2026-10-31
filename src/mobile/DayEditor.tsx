@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Code, Employee, Entry, Note } from '../types';
 import { formatDateLong, relativeTime } from '../lib/dates';
 import { cap } from './mobileUtils';
+import { NOTE_TYPES, composeNote, parseNote } from '../lib/notes';
 
 /**
  * Hoja inferior para cambiar UN día de UNA persona desde el móvil:
@@ -74,6 +75,19 @@ export function DayEditor({ emp, date, entry, note, codes, canEdit, onSave, onCl
           )}
 
           <h3 className="m-group-title">📝 Nota</h3>
+          {canEdit && (
+            <div className="m-note-types">
+              {NOTE_TYPES.map((t) => {
+                const p = parseNote(text);
+                return (
+                  <button key={t.type} className={p.type === t.type ? 'on' : ''}
+                    onClick={() => setText(composeNote({ ...p, type: p.type === t.type ? null : t.type }))}>
+                    {t.emoji} {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <textarea
             className="m-note"
             rows={3}

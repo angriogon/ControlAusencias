@@ -6,7 +6,8 @@ import type { AppUser, CellChange, Employee, PresenceUser } from './types';
 import { coverageImpact } from './lib/ops';
 import { formatDate } from './lib/dates';
 import { normSiglas } from './lib/siglas';
-import { OpsView } from './views/OpsView';
+import { OpsView, type Sub } from './views/OpsView';
+import { TodayStrip } from './views/TodayStrip';
 import { HelpDialog } from './views/HelpDialog';
 import { AdminProvider, useAdmin, hhmm } from './components/admin';
 import { initials } from './lib/colors';
@@ -58,6 +59,10 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   const [editing, setEditing] = useState<Employee | null>(null);
   const [online, setOnline] = useState<PresenceUser[]>([]);
   const [help, setHelp] = useState(false);
+  const [focus, setFocus] = useState<{ employeeId: string; date: string; n: number } | null>(null);
+  const [opsSub, setOpsSub] = useState<{ sub: Sub; n: number } | null>(null);
+  const goto = useCallback((employeeId: string, date: string) => { setFocus({ employeeId, date, n: Date.now() }); setTab('calendar'); }, []);
+  const openOps = useCallback((sub: Sub) => { setOpsSub({ sub, n: Date.now() }); try { localStorage.setItem('ca-ops-sub', sub); } catch { /* */ } setTab('ops'); }, []);
   const admin = useAdmin();
   const onError = useCallback((m: string) => toast(m, 'error',
     m.includes('modo administrador') ? { label: 'Activar modo admin', run: () => { admin.requestAdmin(); } } : undefined), [toast, admin]);
@@ -73,11 +78,11 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         const list = warnings.slice(0, 4).map((w) => `${w.zona} el ${formatDate(w.date).slice(0, 5)} (${w.working} de mín. ${w.min})`).join(', ');
         toast(`⚠ Zona por debajo del mínimo de técnicos: ${list}${warnings.length > 4 ? ` y ${warnings.length - 4} más` : ''}.`, 'warn', {
           label: 'Ver cobertura',
-          run: () => { try { localStorage.setItem('ca-ops-sub', 'cobertura'); } catch { /* */ } setTab('ops'); },
+          run: () => openOps('cobertura'),
         });
       }
       return ok;
-    }, [data.employees, data.entries, data.codes, data.ops, toast]);
+    }, [data.employees, data.entries, data.codes, data.ops, toast, openOps]);
 
   const effective = useMemo(() => ({
     ...data,
@@ -206,6 +211,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         </div>
       )}
       {readOnly && <div className="banner">Tu usuario es de <b>solo lectura</b>.</div>}
+      {!data.loading && <TodayStrip data={data} onOpen={() => openOps('agenda')} />}
 
       <main>
         {data.loading ? <div className="splash">Cargando datos…</div> : (
@@ -217,9 +223,10 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
                 onCursor={(c) => store.setCursor?.(c)}
                 onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }}
                 onSaveSiglas={readOnly ? undefined : saveSiglas}
+                focus={focus}
               />
             )}
-            {tab === 'ops' && <OpsView store={store} data={effective} user={user} onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }} />}
+            {tab === 'ops' && <OpsView store={store} data={effective} user={user} onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }} onGoto={goto} initialSub={opsSub} />}
             {tab === 'summary' && <SummaryView data={effective} />}
             {tab === 'history' && <HistoryView store={store} data={effective} />}
             {tab === 'data' && <DataView store={store} data={effective} user={user} />}

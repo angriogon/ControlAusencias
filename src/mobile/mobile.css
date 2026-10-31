@@ -163,3 +163,6 @@ ul.m-card { padding: 0 12px; }
 }
 /* El relleno vertical va en el borde: si fuese "padding", asomaría media línea de la 4.ª fila recortada */
 .m-note-line { padding: 0 6px; border-top: 2px solid #fffbea; border-bottom: 2px solid #fffbea; line-height: 1.35; }
+.m-note-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.m-note-types button { border: 1px solid #c9d1dc; background: #fff; border-radius: 99px; padding: 6px 10px; font-size: 13px; }
+.m-note-types button.on { background: #e8f0f8; border-color: #2e6da4; color: #1f4e79; font-weight: 600; }

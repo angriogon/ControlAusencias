@@ -10,7 +10,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <ul>
             <li><b>Un día:</b> clic en la celda → elige la clave (o escribe «v» y Enter).</li>
             <li><b>Varios:</b> arrastra con el ratón. <b>Todo el mes de alguien:</b> clic en su nombre. <b>Un día para todos:</b> clic en el número del día.</li>
-            <li><b>Nota:</b> en la paleta, «📝 Añadir nota». Las celdas con nota tienen un triángulo rojo; se leen pasando el ratón.</li>
+            <li><b>Nota:</b> en la paleta, a la derecha. Elige el tipo (🩺 Médico, 🚐 Taller/ITV, 📌 Tarea, 🎓 Formación) y la hora; debajo salen textos que se usan a menudo.</li>
+            <li>En la celda se ve el icono del tipo (o un triángulo rojo si es una nota normal). Pasando el ratón se lee.</li>
+            <li>Una <b>📌 Tarea</b> se puede repetir cada semana o cada mes. Al marcar <b>P</b> o <b>A</b>, se ofrece apuntar el motivo.</li>
             <li><b>Borrar:</b> selecciona y pulsa <kbd>Supr</kbd> (borra clave y nota).</li>
             <li><b>Vacaciones de X a Y:</b> botón «＋ Marcar periodo».</li>
             <li><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> como en Excel, también desde Excel.</li>
@@ -27,7 +29,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         <section>
           <h3>🧭 Operativa (dispatch)</h3>
           <ul>
-            <li><b>Centro de mando:</b> quién trabaja hoy o el siguiente laborable en cada zona, alertas y novedades.</li>
+            <li><b>Centro de mando:</b> quién trabaja hoy o el siguiente laborable en cada zona, alertas (también citas en días con PC) y novedades.</li>
+            <li><b>Agenda y tareas:</b> médicos, talleres, formación y tareas de los próximos días; tareas pendientes hasta marcarlas ✓ hechas; buscador en todas las notas. «Ir al día» abre la celda.</li>
+            <li>La franja azul de arriba resume lo de hoy y el próximo laborable (se oculta con ✕ hasta mañana).</li>
             <li><b>Cobertura:</b> semáforo de zonas por día. 🟢 cubierta · 🟡 justa · 🔴 sin cubrir · ⚪ festivo.</li>
             <li><b>¿Quién puede ir?:</b> zona + día → técnicos disponibles, primero los de la zona y con menos carga.</li>
             <li><b>Carga</b> de PC por técnico, <b>Saldos</b> (vacaciones, festivos trabajados) y <b>Revisar datos</b>.</li>
