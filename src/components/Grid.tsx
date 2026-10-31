@@ -4,6 +4,7 @@ import { entryKey } from '../data/useAppData';
 import { WEEKDAY_LETTER, formatDate, formatDateLong, isWeekend, isoWeek, parseIso, todayIso, weekday } from '../lib/dates';
 import { normalizeCode } from '../lib/codes';
 import { initials } from '../lib/colors';
+import { frequentNotes, noteIcon, repeatDates } from '../lib/notes';
 import { CodePicker, type PickerResult } from './CodePicker';
 import { useUi } from './ui';
 import { useAdmin } from './admin';
@@ -31,6 +32,10 @@ interface Props {
   onSaveNote: (employeeId: string, date: string, text: string, label: string) => Promise<boolean>;
   onApplyCombined: (cells: CellChange[], notes: NoteChange[], label: string) => Promise<boolean>;
   onOpenEmployee: (e: Employee) => void;
+  /** Celda a la que saltar (desde la agenda o el buscador de notas). */
+  focus?: { employeeId: string; date: string; n: number } | null;
+  /** Carga los años necesarios antes de repetir una tarea en fechas futuras. */
+  ensureYears?: (years: number[]) => Promise<void>;
   /** Modo admin: editar las siglas directamente en su celda. Devuelve true si se guardó. */
   onSaveSiglas?: (e: Employee, siglas: string) => Promise<boolean>;
 }
@@ -49,10 +54,22 @@ export function Grid(p: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const today = todayIso();
   const lastRow = p.employees.length - 1;
+  const notesRef = useRef(p.notes);
+  notesRef.current = p.notes;
   const lastCol = p.days.length - 1;
 
   // Si cambia el mes o el filtro, la selección deja de tener sentido
   useEffect(() => { setSel(null); setPicker(null); }, [p.days[0], p.employees.length]);
+
+  // Saltar a una celda concreta (agenda, buscador de notas)
+  useEffect(() => {
+    if (!p.focus) return;
+    const r0 = p.employees.findIndex((e) => e.id === p.focus!.employeeId);
+    const c0 = p.days.indexOf(p.focus.date);
+    if (r0 < 0 || c0 < 0) return;
+    setSel({ a: { r: r0, c: c0 }, f: { r: r0, c: c0 } });
+    wrap.current?.focus({ preventScroll: true });
+  }, [p.focus?.n, p.days[0], p.employees.length]);
 
   // Comunicar a los compañeros en qué celda estoy
   const focusEmp = sel ? p.employees[sel.f.r]?.id : undefined;
@@ -135,11 +152,28 @@ export function Grid(p: Props) {
     setPicker({ x: b ? b.left : 200, y: b ? b.bottom + 4 : 200, filter });
   };
 
-  const commit = async ({ code, note }: PickerResult) => {
+  const commit = async ({ code, note, repeat }: PickerResult) => {
     const cells = cellsInSel();
     setPicker(null);
     if (!cells.length) return;
     const one = cells.length === 1 ? `${cells[0].emp.nombre} ${formatDate(cells[0].date)}` : describeSel();
+    if (note !== undefined && repeat && cells.length === 1) {
+      // Tarea repetida: la nota se pone en todas las fechas y se deshace de una vez
+      const { emp, date } = cells[0];
+      const dates = repeatDates(date, repeat.every, repeat.until);
+      await p.ensureYears?.([...new Set(dates.map((d) => Number(d.slice(0, 4))))]);
+      const cur = notesRef.current;
+      const noteChanges: NoteChange[] = [{ employeeId: emp.id, date, text: note }];
+      for (const d of dates) {
+        const ex = cur.get(entryKey(emp.id, d))?.text ?? '';
+        if (ex.includes(note.trim())) continue;
+        noteChanges.push({ employeeId: emp.id, date: d, text: ex ? `${ex}\n${note.trim()}` : note });
+      }
+      const codes = code !== undefined ? [{ employeeId: emp.id, date, code }] : [];
+      await p.onApplyCombined(codes, noteChanges, `Tarea repetida (${noteChanges.length} días) · ${one}`);
+      wrap.current?.focus();
+      return;
+    }
     if (code !== undefined) {
       await applyCells(cells.map((c) => ({ employeeId: c.emp.id, date: c.date, code })), code ? `Marca ${code} · ${one}` : `Borra · ${one}`);
     }
@@ -302,6 +336,10 @@ export function Grid(p: Props) {
   const singleKey = r && selCount === 1 && p.employees[r.r0] ? entryKey(p.employees[r.r0].id, p.days[r.c0]) : null;
   const single = singleKey ? p.entries.get(singleKey) : undefined;
   const singleNote = singleKey ? p.notes.get(singleKey) ?? null : null;
+  const singleEmpId = singleKey ? p.employees[r!.r0].id : null;
+  const suggestions = useMemo(() => (picker && singleEmpId ? frequentNotes(p.notes, singleEmpId) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [!!picker, singleEmpId]);
 
   // Avisos de la paleta para selecciones de varias celdas
   const protectedInSel = useMemo(() => {
@@ -380,6 +418,7 @@ export function Grid(p: Props) {
                   const n = p.notes.get(entryKey(row.emp.id, d));
                   return n ? `${n.author ? `${n.author}: ` : ''}${n.text}` : '';
                 }).join('\u0001')}
+                iconSig={p.days.map((d) => noteIcon(p.notes.get(entryKey(row.emp.id, d))?.text)).join('|')}
                 remoteSig={p.days.map((d) => (remoteByCell.get(entryKey(row.emp.id, d)) ?? []).map((u) => `${u.name}\u0002${u.color}`).join('\u0003')).join('\u0001')}
                 codeByKey={p.codeByKey}
                 selC0={inRows ? r!.c0 : -1}
@@ -434,6 +473,8 @@ export function Grid(p: Props) {
           current={single?.code ?? null}
           lastChange={single?.updatedBy ? { by: single.updatedBy, at: single.updatedAt } : null}
           note={selCount === 1 ? singleNote : undefined}
+          suggestions={suggestions}
+          date={selCount === 1 && r ? p.days[r.c0] : undefined}
           warning={protectedInSel.length > 0 && (
             <div className="danger-box">
               <b>No se tocarán {protectedInSel.length} día(s) con FN, FL o F:</b>
@@ -458,7 +499,7 @@ export function Grid(p: Props) {
 }
 
 interface RowProps {
-  emp: Employee; ri: number; days: string[]; today: string; sig: string; noteSig: string; remoteSig: string;
+  emp: Employee; ri: number; days: string[]; today: string; sig: string; noteSig: string; remoteSig: string; iconSig: string;
   codeByKey: Map<string, Code>;
   selC0: number; selC1: number; rowSelected: boolean; focusC: number; flashSig: string; vacLeft?: number; canEdit: boolean;
   siglasEditable: boolean;
@@ -473,6 +514,7 @@ interface RowProps {
 const GridRowView = memo(function GridRowView(p: RowProps) {
   const codes = p.sig.split('|');
   const notes = p.noteSig.split('\u0001');
+  const icons = p.iconSig.split('|');
   const remotes = p.remoteSig.split('\u0001');
   const flashing = new Set(p.flashSig ? p.flashSig.split(',') : []);
   const info = `${p.emp.nombre}\n${[p.emp.sede, p.emp.zona, p.emp.telefono && `Tel: ${p.emp.telefono}`, p.emp.extension && `Ext: ${p.emp.extension}`].filter(Boolean).join(' · ')}`;
@@ -508,7 +550,8 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
           ci === p.focusC ? 'focus' : '',
           flashing.has(d) ? 'flash' : '',
           code && !c ? 'unknown' : '',
-          notes[ci] ? 'has-note' : '',
+          notes[ci] && !icons[ci] ? 'has-note' : '',
+          icons[ci] ? 'has-ico' : '',
           here.length ? 'remote' : '',
         ].join(' ');
         const tip = [
@@ -529,6 +572,7 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
             onMouseEnter={() => p.onEnter(p.ri, ci)}
             title={tip || undefined}
           >
+            {icons[ci] && <span className="note-ico" aria-hidden="true">{icons[ci]}</span>}
             {here.length > 0 && <span className="remote-tag" style={{ background: here[0].color }}>{initials(here[0].name)}{here.length > 1 ? `+${here.length - 1}` : ''}</span>}
             {code}
           </td>
@@ -536,7 +580,7 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
       })}
     </tr>
   );
-}, (a, b) => a.sig === b.sig && a.noteSig === b.noteSig && a.remoteSig === b.remoteSig && a.selC0 === b.selC0 && a.selC1 === b.selC1
+}, (a, b) => a.sig === b.sig && a.noteSig === b.noteSig && a.iconSig === b.iconSig && a.remoteSig === b.remoteSig && a.selC0 === b.selC0 && a.selC1 === b.selC1
   && a.rowSelected === b.rowSelected && a.focusC === b.focusC && a.flashSig === b.flashSig && a.emp === b.emp && a.days === b.days
   && a.vacLeft === b.vacLeft && a.codeByKey === b.codeByKey && a.ri === b.ri && a.canEdit === b.canEdit
   && a.siglasEditable === b.siglasEditable && a.onSaveSiglas === b.onSaveSiglas);

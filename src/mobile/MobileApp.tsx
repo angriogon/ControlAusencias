@@ -8,6 +8,7 @@ import {
 import { useUi } from '../components/ui';
 import { matches } from '../lib/search';
 import { DayEditor } from './DayEditor';
+import { agenda, parseNote, typeInfo } from '../lib/notes';
 import { cap, parsePhones } from './mobileUtils';
 import './mobile.css';
 
@@ -129,6 +130,8 @@ function TodayView({ data, onOpen }: { data: AppData; onOpen: (e: Employee, date
         <div><b>{withNote}</b><span>con nota</span></div>
       </div>
 
+      <DayAgenda data={data} date={date} people={people} onOpen={onOpen} />
+
       {ordered.length === 0 && <p className="m-empty">Nadie tiene marca este día{equipo || zona ? ' con estos filtros' : ''}.</p>}
 
       {ordered.map(([code, list]) => {
@@ -158,6 +161,28 @@ function TodayView({ data, onOpen }: { data: AppData; onOpen: (e: Employee, date
         );
       })}
     </div>
+  );
+}
+
+/** Citas y tareas del día (médico, taller, formación, tareas). */
+function DayAgenda({ data, date, people, onOpen }: { data: AppData; date: string; people: Employee[]; onOpen: (e: Employee, date: string) => void }) {
+  const ids = new Set(people.map((e) => e.id));
+  const items = agenda(data.employees, data.entries, data.notes, date, date).filter((a) => a.info.type !== 'otra' && ids.has(a.emp.id));
+  if (!items.length) return null;
+  return (
+    <section className="m-card">
+      <h2 className="m-card-title">📆 Agenda del día<span className="m-count">{items.length}</span></h2>
+      <ul className="m-list">
+        {items.map((a) => (
+          <li key={a.emp.id}>
+            <button onClick={() => onOpen(a.emp, date)}>
+              <span className="m-name">{a.info.done ? '✅' : typeInfo(a.info.type).emoji} {a.info.time && `${a.info.time} · `}{a.emp.nombre}</span>
+              <span className="m-note-line">{parseNote(a.text).body || typeInfo(a.info.type).label}{a.clash ? ` · ⚠ tiene ${a.code}` : ''}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
