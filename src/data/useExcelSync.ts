@@ -3,7 +3,7 @@ import type { DataStore } from './store';
 import type { AppData } from './useAppData';
 import { idbDel, idbGet, idbSet } from './idb';
 import { parseWorkbook } from '../lib/excelImport';
-import { deserializeSnapshot, planSync, serializeSnapshot, snapshotOf, type Snapshot, type SyncPlan } from '../lib/excelSync';
+import { deserializeSnapshot, planSync, serializeSnapshot, snapshotOf, staleMinutes, type Snapshot, type SyncPlan } from '../lib/excelSync';
 
 /**
  * Sincronización Excel (SharePoint sincronizado con OneDrive en este PC) → app.
@@ -32,6 +32,8 @@ export interface ExcelSync {
   fileName: string;
   lastCheck: string | null;
   fileTime: string | null;
+  /** Minutos que el Excel lleva sin cambiar en la jornada si puede haber un atasco de OneDrive; si no, null. */
+  stale: number | null;
   last: LastSync | null;
   error: string;
   warnings: string[];
@@ -260,8 +262,10 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
     notifyRef.current('Sincronización con el Excel desactivada. Lo ya sincronizado se queda en la app.', 'info');
   }, []);
 
+  const stale = state === 'watching' && fileTime && lastCheck ? staleMinutes(new Date(fileTime), new Date(lastCheck)) : null;
+
   return {
-    state: supported() ? state : 'unsupported', fileName, lastCheck, fileTime, last, error, warnings, pending,
+    state: supported() ? state : 'unsupported', fileName, lastCheck, fileTime, stale, last, error, warnings, pending,
     checking, choose, confirmFirst, resume, stop, checkNow,
   };
 }

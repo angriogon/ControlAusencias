@@ -65,3 +65,18 @@ describe('sincronización Excel → app', () => {
     expect(deserializeSnapshot(JSON.parse(JSON.stringify(serializeSnapshot(s))))).toEqual(s);
   });
 });
+
+describe('aviso de OneDrive atascado', () => {
+  const at = (s: string) => new Date(s);
+  it('avisa en horario laboral si la copia lleva más de 2 h sin cambiar en la jornada', async () => {
+    const { staleMinutes } = await import('./excelSync');
+    expect(staleMinutes(at('2026-11-13T08:56:00'), at('2026-11-13T10:00:00'))).toBeNull();
+    expect(staleMinutes(at('2026-11-13T08:56:00'), at('2026-11-13T11:30:00'))).toBe(154);
+    // Lunes temprano: el Excel es del viernes, pero solo cuenta desde las 8:00
+    expect(staleMinutes(at('2026-11-13T18:00:00'), at('2026-11-16T09:30:00'))).toBeNull();
+    expect(staleMinutes(at('2026-11-13T18:00:00'), at('2026-11-16T10:30:00'))).toBe(150);
+    // Fuera de horario y fines de semana no avisa
+    expect(staleMinutes(at('2026-11-13T08:00:00'), at('2026-11-13T20:00:00'))).toBeNull();
+    expect(staleMinutes(at('2026-11-13T08:00:00'), at('2026-11-14T12:00:00'))).toBeNull();
+  });
+});

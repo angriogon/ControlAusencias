@@ -245,6 +245,17 @@ function SyncPanel({ sync, user }: { sync: ExcelSync; user: AppUser }) {
                 </div>
               )}
               {s.state === 'error' && <div className="error small">{s.error} · Se reintentará solo.</div>}
+              {s.stale != null && (
+                <div className="warn-box small stale-box">
+                  <b>⚠ El Excel no ha cambiado en este PC desde hace {s.stale >= 120 ? `${Math.floor(s.stale / 60)} h ${s.stale % 60} min` : `${s.stale} min`}.</b>{' '}
+                  Puede ser normal si nadie lo ha tocado. Si en SharePoint ves cambios más recientes que «Excel guardado», OneDrive se ha atascado:
+                  <ol>
+                    <li>Pulsa el icono de la <b>nube de OneDrive</b> junto al reloj: mira si está en pausa, con errores o pidiendo iniciar sesión.</li>
+                    <li>Si está en pausa, <b>Reanudar sincronización</b>; si hay un error, sigue lo que indique.</li>
+                    <li>Cuando el archivo tenga el ✓ verde en el Explorador, pulsa aquí <b>Comprobar ahora</b>.</li>
+                  </ol>
+                </div>
+              )}
             </div>
           </div>
           <div className="inline-form" style={{ marginTop: 10 }}>

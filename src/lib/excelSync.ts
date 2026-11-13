@@ -105,3 +105,23 @@ export function planSync(
   const people = new Set([...cells, ...noteChanges].map((c) => c.employeeId)).size;
   return { cells, notes: noteChanges, unknownPeople, unknownCodes, overwritten, people };
 }
+
+/** Minutos sin cambios en el Excel a partir de los cuales se avisa (en horario laboral). */
+export const STALE_MINUTES = 120;
+
+/**
+ * ¿OneDrive puede estar atascado? Desde el navegador no se ve SharePoint, así que se
+ * usa una señal indirecta: en horario laboral (L–V, 8:00–19:00) el Excel se toca a
+ * menudo; si la copia local lleva más de 2 h sin cambiar en la jornada, se avisa.
+ * Las horas de la noche y del fin de semana no cuentan (lunes a las 8:30 no avisa).
+ * Devuelve los minutos «sin cambios» de la jornada, o null si no hay que avisar.
+ */
+export function staleMinutes(fileTime: Date, now: Date, limit = STALE_MINUTES): number | null {
+  const day = now.getDay();
+  const h = now.getHours() + now.getMinutes() / 60;
+  if (day === 0 || day === 6 || h < 8 || h >= 19) return null;
+  const start = new Date(now); start.setHours(8, 0, 0, 0);
+  const from = fileTime > start ? fileTime : start;
+  const mins = Math.floor((now.getTime() - from.getTime()) / 60000);
+  return mins > limit ? mins : null;
+}

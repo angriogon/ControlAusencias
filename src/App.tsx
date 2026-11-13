@@ -180,9 +180,11 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         </nav>
         <div className="topbar-right">
           {sync.state !== 'off' && sync.state !== 'unsupported' && (
-            <button className={`sync-pill ${sync.state}`} onClick={() => setTab('data')}
-              title={sync.state === 'watching' ? `Sincronizado con «${sync.fileName}»${sync.lastCheck ? ` · comprobado ${new Date(sync.lastCheck).toLocaleTimeString('es-ES')}` : ''}` : 'Sincronización con el Excel en pausa'}>
-              🔄 Excel
+            <button className={`sync-pill ${sync.state} ${sync.stale != null ? 'stale' : ''}`} onClick={() => setTab('data')}
+              title={sync.stale != null
+                ? `El Excel no ha cambiado en este PC desde hace ${Math.round(sync.stale / 60 * 10) / 10} h: revisa que OneDrive esté sincronizando`
+                : sync.state === 'watching' ? `Sincronizado con «${sync.fileName}»${sync.lastCheck ? ` · comprobado ${new Date(sync.lastCheck).toLocaleTimeString('es-ES')}` : ''}` : 'Sincronización con el Excel en pausa'}>
+              {sync.stale != null ? '⚠ Excel' : '🔄 Excel'}
             </button>
           )}
           <button className="help-btn" onClick={() => setHelp(true)} title="Guía rápida" aria-label="Ayuda">?</button>
