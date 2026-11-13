@@ -249,7 +249,7 @@ function SyncPanel({ sync, user }: { sync: ExcelSync; user: AppUser }) {
           </div>
           <div className="inline-form" style={{ marginTop: 10 }}>
             {s.state === 'needs-permission' && <button className="primary" onClick={s.resume}>▶ Reanudar (dar permiso)</button>}
-            {s.state !== 'needs-permission' && <button onClick={s.checkNow}>🔄 Comprobar ahora</button>}
+            {s.state !== 'needs-permission' && <button onClick={s.checkNow} disabled={s.checking}>{s.checking ? '⏳ Comprobando…' : '🔄 Comprobar ahora'}</button>}
             <button className="danger-ghost" onClick={s.stop}>Desactivar</button>
           </div>
         </>

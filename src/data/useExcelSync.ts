@@ -37,6 +37,8 @@ export interface ExcelSync {
   warnings: string[];
   /** Primera vez: diferencias entre el Excel y la app para que el usuario decida. */
   pending: { plan: SyncPlan; fileName: string } | null;
+  /** Hay una comprobación en marcha. */
+  checking: boolean;
   choose: () => Promise<void>;
   confirmFirst: (apply: boolean) => Promise<void>;
   resume: () => Promise<void>;
@@ -46,6 +48,12 @@ export interface ExcelSync {
 
 /** Guarda la configuración; si el navegador no puede guardar el archivo, la sincronización sigue en esta sesión. */
 const saveCfg = async (c: Cfg) => { try { await idbSet(CFG, { ...c }); } catch { /* no se recordará al recargar */ } };
+
+/** Si el archivo no responde (p. ej. OneDrive bloqueado), no se queda esperando para siempre. */
+const withTimeout = <T,>(p: Promise<T>, ms: number, msg: string) =>
+  Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
+
+type Outcome = 'unchanged' | 'no-diff' | 'applied' | 'busy' | 'error' | 'off';
 
 const supported = () => typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 
@@ -61,6 +69,7 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
   const cfg = useRef<Cfg | null>(null);
   const firstSnap = useRef<{ snap: Snapshot; lastModified: number } | null>(null);
   const busy = useRef(false);
+  const [checking, setChecking] = useState(false);
   const dataRef = useRef(data);
   dataRef.current = data;
   const notifyRef = useRef(notify);
@@ -105,16 +114,18 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
   };
 
   /** Comprueba el archivo; si ha cambiado, aplica las diferencias. */
-  const check = useCallback(async (force = false) => {
+  const check = useCallback(async (force = false): Promise<{ outcome: Outcome; message?: string; fileTime?: number }> => {
     const c = cfg.current;
-    if (!c || busy.current) return;
+    if (!c) return { outcome: 'off' };
+    if (busy.current) return { outcome: 'busy' };
     busy.current = true;
+    setChecking(true);
     try {
-      const f = await c.handle.getFile();
+      const f = await withTimeout(c.handle.getFile(), 30000, 'El archivo no responde. Comprueba que OneDrive está sincronizado (icono de la nube junto al reloj).');
       setLastCheck(new Date().toISOString());
       setFileTime(new Date(f.lastModified).toISOString());
-      if (!force && f.lastModified === c.lastModified) { setState('watching'); setError(''); return; }
-      const { file, snap } = await read(c.handle);
+      if (!force && f.lastModified === c.lastModified) { setState('watching'); setError(''); return { outcome: 'unchanged', fileTime: f.lastModified }; }
+      const { file, snap } = await withTimeout(read(c.handle), 60000, 'No se ha podido leer el Excel a tiempo. Se reintentará solo.');
       const raw = await idbGet<Parameters<typeof deserializeSnapshot>[0]>(BASE);
       const base = raw ? deserializeSnapshot(raw) : null;
       const d = dataRef.current;
@@ -128,15 +139,28 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
       await saveCfg(c);
       setState('watching');
       setError('');
+      return { outcome: plan.cells.length || plan.notes.length ? 'applied' : 'no-diff', fileTime: file.lastModified };
     } catch (e) {
       const msg = (e as Error).message ?? String(e);
       // Si el archivo se está guardando o OneDrive lo está descargando, se reintenta luego
       if ((e as DOMException).name === 'NotAllowedError') setState('needs-permission');
       else { setState('error'); setError(msg); }
+      return { outcome: 'error', message: msg };
     } finally {
       busy.current = false;
+      setChecking(false);
     }
   }, [store]);
+
+  /** Botón «Comprobar ahora»: siempre dice qué ha pasado. */
+  const checkNow = useCallback(async () => {
+    const r = await check(true);
+    const when = r.fileTime ? new Date(r.fileTime).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    if (r.outcome === 'no-diff') notifyRef.current(`✓ Excel leído (guardado el ${when}): no hay cambios nuevos que aplicar.`, 'info');
+    else if (r.outcome === 'busy') notifyRef.current('Ya se está comprobando el Excel; espera unos segundos.', 'info');
+    else if (r.outcome === 'error') notifyRef.current(`No se pudo leer el Excel: ${r.message}`, 'error');
+    // 'applied' ya muestra su propio aviso con lo aplicado
+  }, [check]);
 
   // Al arrancar: recuperar el archivo elegido y comprobar el permiso
   useEffect(() => {
@@ -238,6 +262,6 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
 
   return {
     state: supported() ? state : 'unsupported', fileName, lastCheck, fileTime, last, error, warnings, pending,
-    choose, confirmFirst, resume, stop, checkNow: () => check(true),
+    checking, choose, confirmFirst, resume, stop, checkNow,
   };
 }
