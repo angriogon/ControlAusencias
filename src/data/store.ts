@@ -25,6 +25,8 @@ export interface DataStore {
   /** Devuelve el id de lote, para poder deshacerlo desde el historial. */
   applyChanges(changes: CellChange[], label: string): Promise<string | null>;
   applyNotes(changes: NoteChange[], label: string): Promise<string | null>;
+  /** Cambios que vienen del Excel sincronizado (solo admin; un lote, sin límite de personas). */
+  applyExternal(cells: CellChange[], notes: NoteChange[], label: string): Promise<string | null>;
   saveEmployee(e: Employee): Promise<Employee>;
   saveCode(c: Code): Promise<void>;
   /** Borrado definitivo de una persona y todas sus marcas (se puede revertir desde historial). */

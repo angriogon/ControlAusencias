@@ -205,6 +205,21 @@ export class SupabaseStore implements DataStore {
     return (data as string) ?? null;
   }
 
+  async applyExternal(cells: CellChange[], notes: NoteChange[], label: string) {
+    let batch: string | null = null;
+    // Trozos de 2000 para no superar el tamaño de petición (cada trozo es un lote del historial)
+    for (let i = 0; i < Math.max(cells.length, notes.length); i += 2000) {
+      const { data, error } = await this.sb.rpc('sync_excel', {
+        p_entries: cells.slice(i, i + 2000).map((c) => ({ employee_id: c.employeeId, day: c.date, code: c.code })),
+        p_notes: notes.slice(i, i + 2000).map((c) => ({ employee_id: c.employeeId, day: c.date, text: c.text })),
+        p_label: label,
+      });
+      fail(error);
+      batch = (data as string) ?? null;
+    }
+    return batch;
+  }
+
   async saveEmployee(e: Employee) {
     const { data: exists } = await this.sb.from('employees').select('id').eq('id', e.id).maybeSingle();
     const { error } = await this.sb.rpc('save_employee', {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataStore } from './data/store';
 import { createStore } from './data';
 import { useAppData } from './data/useAppData';
+import { useExcelSync } from './data/useExcelSync';
 import type { AppUser, CellChange, Employee, PresenceUser } from './types';
 import { coverageImpact } from './lib/ops';
 import { formatDate } from './lib/dates';
@@ -68,6 +69,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     m.includes('modo administrador') ? { label: 'Activar modo admin', run: () => { admin.requestAdmin(); } } : undefined), [toast, admin]);
   const data = useAppData(store, onError);
   const readOnly = user.role === 'lector';
+  const sync = useExcelSync(store, data, user.role === 'admin' && !data.loading, toast);
 
   // Aviso (sin bloquear) cuando un cambio deja una zona por debajo de su mínimo de técnicos
   const withCoverageCheck = useCallback(<A extends unknown[]>(fn: (cells: CellChange[], ...rest: A) => Promise<boolean>) =>
@@ -177,6 +179,12 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
           ))}
         </nav>
         <div className="topbar-right">
+          {sync.state !== 'off' && sync.state !== 'unsupported' && (
+            <button className={`sync-pill ${sync.state}`} onClick={() => setTab('data')}
+              title={sync.state === 'watching' ? `Sincronizado con «${sync.fileName}»${sync.lastCheck ? ` · comprobado ${new Date(sync.lastCheck).toLocaleTimeString('es-ES')}` : ''}` : 'Sincronización con el Excel en pausa'}>
+              🔄 Excel
+            </button>
+          )}
           <button className="help-btn" onClick={() => setHelp(true)} title="Guía rápida" aria-label="Ayuda">?</button>
           <button className="undo-btn" onClick={undo} disabled={!data.undoSize} title="Deshacer mi último cambio (Ctrl+Z)">↶ Deshacer</button>
           <span className={`status ${data.status}`} title="Los cambios se guardan solos al momento">{statusText}</span>
@@ -211,6 +219,12 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         </div>
       )}
       {readOnly && <div className="banner">Tu usuario es de <b>solo lectura</b>.</div>}
+      {sync.state === 'needs-permission' && (
+        <div className="banner sync-banner">
+          🔄 La sincronización con el Excel <b>«{sync.fileName}»</b> está en pausa: el navegador necesita tu permiso para leerlo.
+          <button className="primary" onClick={sync.resume}>Reanudar</button>
+        </div>
+      )}
       {!data.loading && <TodayStrip data={data} onOpen={() => openOps('agenda')} />}
 
       <main>
@@ -229,7 +243,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
             {tab === 'ops' && <OpsView store={store} data={effective} user={user} onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }} onGoto={goto} initialSub={opsSub} />}
             {tab === 'summary' && <SummaryView data={effective} />}
             {tab === 'history' && <HistoryView store={store} data={effective} />}
-            {tab === 'data' && <DataView store={store} data={effective} user={user} />}
+            {tab === 'data' && <DataView store={store} data={effective} user={user} sync={sync} />}
             {tab === 'settings' && <SettingsView store={store} data={effective} user={user} editing={editing} setEditing={setEditing} />}
           </>
         )}

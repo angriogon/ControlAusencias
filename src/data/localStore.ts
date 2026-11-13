@@ -208,6 +208,13 @@ export class LocalStore implements DataStore {
     return this.write(changes.map((c) => ({ kind: 'note' as const, ...c })), label);
   }
 
+  async applyExternal(cells: CellChange[], notes: NoteChange[], label: string) {
+    return this.write([
+      ...cells.map((c) => ({ kind: 'entry' as const, ...c })),
+      ...notes.map((c) => ({ kind: 'note' as const, ...c })),
+    ], label);
+  }
+
   async saveEmployee(e: Employee) {
     this.requireAdmin('Gestionar personas');
     await this.write([{ kind: 'employee', id: e.id, value: e }], this.state.employees.has(e.id) ? `Edita ficha de ${e.nombre}` : `Alta de ${e.nombre}`);
