@@ -36,6 +36,13 @@ Marca cada punto al completarlo. Los marcados con ⛔ bloquean el arranque: sin 
 - [ ] Revisar la clave **FS (importada, revisar)**: sustituirla por la correcta o confirmar que se usa.
 - [ ] Importación final del Excel (si hubo cambios en el Excel desde la última importación) **justo antes** del arranque.
 
+## 5 bis. Sincronización con el Excel (si se mantiene el Excel como referencia)
+
+- [ ] En SharePoint, **Sincronizar** la biblioteca del Excel con OneDrive en el PC del administrador y marcar el archivo como «Mantener siempre en este dispositivo».
+- [ ] App → Copias y Excel → **Elegir el Excel sincronizado** (Edge o Chrome) → «Empezar desde ahora» (o aplicar diferencias si las hay).
+- [ ] Dejar la app abierta en ese PC durante la jornada (si se cierra, al volver a abrirla se pondrá al día).
+- [ ] Si se usa la sincronización, el punto «Excel antiguo en solo lectura» del día de arranque **no aplica**: el Excel sigue siendo la referencia y la app lo refleja.
+
 ## 6. Día de arranque
 
 - [ ] ⛔ Poner el **Excel antiguo en solo lectura** en SharePoint y avisar: «desde hoy, solo en la app». Nunca los dos a la vez.

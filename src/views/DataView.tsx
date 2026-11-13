@@ -7,9 +7,11 @@ import { parseWorkbook, type ImportResult } from '../lib/excelImport';
 import { exportToExcel } from '../lib/excelExport';
 import { Modal, useUi, Empty } from '../components/ui';
 import { AdminGate, useAdmin } from '../components/admin';
+import type { ExcelSync } from '../data/useExcelSync';
+import { relativeTime } from '../lib/dates';
 
 /** Copias de seguridad, exportar a Excel e importar el Excel antiguo. */
-export function DataView({ store, data, user }: { store: DataStore; data: AppData; user: AppUser }) {
+export function DataView({ store, data, user, sync }: { store: DataStore; data: AppData; user: AppUser; sync: ExcelSync }) {
   const { toast, confirm } = useUi();
   const [snaps, setSnaps] = useState<SnapshotInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -100,6 +102,8 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
           <p className="muted">Puntos de restauración del calendario completo. Si alguien borra algo por error, aquí se puede volver atrás.</p>
         </div>
       </div>
+
+      <SyncPanel sync={sync} user={user} />
 
       <section className="panel">
         <h2>Crear copia ahora</h2>
@@ -197,5 +201,81 @@ export function DataView({ store, data, user }: { store: DataStore; data: AppDat
         </Modal>
       )}
     </div>
+  );
+}
+
+/** Sincronización en un solo sentido: Excel de SharePoint (vía OneDrive en este PC) → app. */
+function SyncPanel({ sync, user }: { sync: ExcelSync; user: AppUser }) {
+  const s = sync;
+  return (
+    <section className="panel sync-panel">
+      <h2>🔄 Sincronizar con el Excel de SharePoint <span className="tag gray">solo lectura</span></h2>
+      <p className="muted small">
+        La app lee el Excel y aplica sola lo que cambie en él. <b>Nunca escribe en el Excel</b>: lo que hagas en la app se queda en la app.
+        Si una misma celda cambia después en el Excel, gana el Excel (queda en el Historial y se puede deshacer).
+      </p>
+      {user.role !== 'admin' ? (
+        <p className="muted">Solo un usuario administrador puede activar la sincronización.</p>
+      ) : s.state === 'unsupported' ? (
+        <p className="warn-box">Este navegador no permite vigilar archivos. Usa <b>Microsoft Edge</b> o <b>Google Chrome</b> en el PC.</p>
+      ) : s.state === 'off' ? (
+        <>
+          <ol className="sync-steps">
+            <li>En SharePoint, abre la biblioteca donde está el Excel y pulsa <b>Sincronizar</b> (se añade a OneDrive en tu PC).</li>
+            <li>En el Explorador de Windows, sobre el archivo: clic derecho → <b>Mantener siempre en este dispositivo</b>.</li>
+            <li>Pulsa el botón y elige ese Excel dentro de la carpeta de OneDrive.</li>
+          </ol>
+          <button className="primary" onClick={s.choose}>📂 Elegir el Excel sincronizado</button>
+          <p className="muted small">Funciona mientras la app esté abierta en este PC. Los cambios llegan en lo que tarde OneDrive en sincronizar (normalmente segundos o un par de minutos) y los ven al instante todos los que tengan la app abierta.</p>
+        </>
+      ) : (
+        <>
+          <div className="sync-status">
+            <span className={`sync-dot ${s.state}`} />
+            <div>
+              <b>{s.state === 'watching' ? 'Vigilando' : s.state === 'needs-permission' ? 'En pausa: falta tu permiso' : 'Error al leer'}</b> «{s.fileName}»
+              <div className="muted small">
+                {s.lastCheck && <>Última comprobación: {relativeTime(s.lastCheck)}</>}
+                {s.fileTime && <> · Excel guardado: {formatDateTime(s.fileTime)}</>}
+              </div>
+              {s.last && (
+                <div className="small">
+                  Último cambio aplicado: {s.last.cells} día(s) y {s.last.notes} nota(s) de {s.last.people} persona(s), {relativeTime(s.last.at)}
+                  {s.last.overwritten > 0 && <span className="tag warn-tag">{s.last.overwritten} cambio(s) de la app sustituidos</span>}
+                </div>
+              )}
+              {s.state === 'error' && <div className="error small">{s.error} · Se reintentará solo.</div>}
+            </div>
+          </div>
+          <div className="inline-form" style={{ marginTop: 10 }}>
+            {s.state === 'needs-permission' && <button className="primary" onClick={s.resume}>▶ Reanudar (dar permiso)</button>}
+            {s.state !== 'needs-permission' && <button onClick={s.checkNow}>🔄 Comprobar ahora</button>}
+            <button className="danger-ghost" onClick={s.stop}>Desactivar</button>
+          </div>
+        </>
+      )}
+      {s.warnings.map((w) => <p key={w} className="warn-box small">{w}</p>)}
+      {s.pending && (
+        <Modal title="Primera sincronización con el Excel" onClose={() => s.stop()} footer={<>
+          <button onClick={() => s.confirmFirst(false)}>Empezar desde ahora</button>
+          <button className="primary" disabled={!s.pending.plan.cells.length && !s.pending.plan.notes.length} onClick={() => s.confirmFirst(true)}>
+            Aplicar {s.pending.plan.cells.length + s.pending.plan.notes.length} diferencia(s)
+          </button>
+        </>}>
+          <div className="form">
+            <p>Archivo: <b>{s.pending.fileName}</b></p>
+            <div className="stats">
+              <div className="stat"><b>{s.pending.plan.cells.length}</b><span>días distintos en el Excel</span></div>
+              <div className="stat"><b>{s.pending.plan.notes.length}</b><span>notas distintas</span></div>
+              <div className="stat"><b>{s.pending.plan.people}</b><span>personas afectadas</span></div>
+            </div>
+            <p className="muted small">
+              <b>Aplicar</b>: la app copia del Excel lo que tenga distinto (sin borrar nada de la app). <b>Empezar desde ahora</b>: no se toca nada y solo se aplicarán los cambios que se hagan en el Excel a partir de este momento.
+              En los dos casos queda en el Historial.
+            </p>
+          </div>
+        </Modal>
+      )}
+    </section>
   );
 }

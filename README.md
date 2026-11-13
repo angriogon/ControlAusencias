@@ -38,6 +38,7 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 - **Ajustes → Zonas** (modo admin): equipos que son «técnicos de campo», mínimo de técnicos por zona (por defecto 1) y zonas vecinas (la vecindad es mutua).
 - **Ajustes → Usuarios** (rol admin + modo admin): cambiar el rol de cada usuario (Administrador / Editor / Solo consulta). Siempre queda al menos un administrador.
 - **❓** arriba: guía rápida de una pantalla.
+- **🔄 Sincronizar con el Excel de SharePoint** (Copias y Excel, solo rol admin, Edge o Chrome de escritorio): un solo sentido, Excel → app; **la app nunca escribe en el Excel**. Se sincroniza la biblioteca de SharePoint con OneDrive en el PC, se elige el archivo y la app lo vigila cada 20 s mientras esté abierta. Solo aplica lo que ha cambiado en el Excel desde la última lectura (lo hecho solo en la app se conserva; si esa misma celda cambia luego en el Excel, gana el Excel). Personas o claves del Excel que no existen en la app se avisan y no se crean. Cada sincronización es un lote del Historial (se deshace de una vez). La primera vez se puede «Aplicar diferencias» o «Empezar desde ahora».
 - **Me he equivocado**: `Ctrl+Z` o botón **↶ Deshacer** arriba. Para cambios de otros o más antiguos: pestaña **Historial**.
 - `Ctrl+C` / `Ctrl+V` funcionan como en Excel (también pegando desde Excel).
 - **Tipos de nota**: en la paleta, 🩺 Médico · 🚐 Taller/ITV · 📌 Tarea · 🎓 Formación + hora. Se guardan como texto («🩺 Médico 09:30 · revisión»), así que el historial y la exportación siguen igual; las notas antiguas se clasifican solas por palabras clave. La celda muestra el icono del tipo. Sugerencias con los textos más usados (primero los de esa persona). Las tareas se pueden repetir (cada semana, 2 semanas o mes, hasta una fecha; si cae en fin de semana pasa al lunes) y se deshacen de una vez. Al marcar **P** o **A** sin nota, se ofrece apuntar el motivo (opcional).
@@ -100,7 +101,7 @@ src/
   lib/         fechas, claves, importar/exportar Excel
   components/  Grid (calendario), CodePicker (paleta), ui (modales, avisos)
   views/       Calendario, Resumen, Historial, Copias y Excel, Ajustes
-supabase/migrations/001_init.sql   tablas, auditoría por triggers, RPC de deshacer/copias, RLS, realtime
+supabase/migrations/001…008       tablas, auditoría por triggers, RPC de deshacer/copias, RLS, realtime
 ```
 
 La interfaz solo habla con `DataStore`; cambiar de backend (p. ej. a SharePoint/Graph) es escribir otro adaptador.

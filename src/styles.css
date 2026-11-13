@@ -491,3 +491,14 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 .strip-link { margin-left: auto; color: var(--brand-2); font-weight: 600; }
 .strip-close { border: none; background: none; color: var(--muted); }
 @media (max-width: 900px) { .ag-item { grid-template-columns: 24px 44px minmax(0, 1fr); } .ag-actions { grid-column: 3; } }
+
+/* ---------- Sincronización con Excel ---------- */
+.sync-pill { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.3); padding: 4px 10px; font-size: 12.5px; }
+.sync-pill.watching { background: rgba(47,163,107,0.35); border-color: rgba(111,214,160,0.7); }
+.sync-pill.needs-permission, .sync-pill.error { background: #f0b429; color: #3d2c00; border-color: #f0b429; font-weight: 700; }
+.sync-steps { margin: 6px 0 12px; padding-left: 20px; font-size: 13.5px; display: flex; flex-direction: column; gap: 4px; }
+.sync-status { display: flex; gap: 10px; align-items: flex-start; }
+.sync-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; flex: none; background: #2fa36b; box-shadow: 0 0 0 4px rgba(47,163,107,0.18); }
+.sync-dot.needs-permission { background: #e0a800; box-shadow: 0 0 0 4px rgba(224,168,0,0.2); }
+.sync-dot.error { background: var(--danger); box-shadow: 0 0 0 4px rgba(192,57,43,0.18); }
+.banner.sync-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #fff8e1; }
