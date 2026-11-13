@@ -505,3 +505,7 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 .sync-pill.stale { background: #f0b429; color: #3d2c00; border-color: #f0b429; font-weight: 700; }
 .stale-box { margin: 8px 0 0; }
 .stale-box ol { margin: 6px 0 0; padding-left: 18px; }
+.review-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+.review-kinds label.check { align-items: flex-start; }
+.review-table { max-height: 320px; }
+@media (max-width: 900px) { .review-kinds { grid-template-columns: 1fr; } }

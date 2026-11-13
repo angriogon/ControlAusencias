@@ -80,3 +80,24 @@ describe('aviso de OneDrive atascado', () => {
     expect(staleMinutes(at('2026-11-13T08:00:00'), at('2026-11-14T12:00:00'))).toBeNull();
   });
 });
+
+describe('revisar diferencias con el Excel (comparación completa)', () => {
+  it('encuentra claves distintas, borrados y lo que solo tiene la app, dentro de las fechas del Excel', async () => {
+    const { fullDiff, rowsToChanges } = await import('./excelSync');
+    const next = snapshotOf(excel([['Ana Pérez', '2026-11-02', 'V'], ['Ana Pérez', '2026-11-03', 'B', 'baja']]));
+    const appE = ent([['a', '2026-11-02', 'PC'], ['a', '2026-11-05', 'PC'], ['a', '2027-03-01', 'V'], ['b', '2026-11-05', 'PC']]);
+    const appN = nts([['a', '2026-11-05', '📌 Tarea · llamar']]);
+    // Beatriz no está en el Excel: no se toca
+    const rows = fullDiff(next, '2026-01-01', '2026-12-31', app, appE, appN, DEFAULT_CODES);
+    expect(rows.map((r) => `${r.emp.id} ${r.date} ${r.kind} ${r.app}→${r.excel}`)).toEqual([
+      'a 2026-11-02 code-diff PC→V',
+      'a 2026-11-03 code-diff null→B',
+      'a 2026-11-03 note-diff null→baja',
+      'a 2026-11-05 code-app-only PC→null',
+      'a 2026-11-05 note-app-only 📌 Tarea · llamar→null',
+    ]);
+    const ch = rowsToChanges(rows.filter((r) => r.kind !== 'note-app-only'));
+    expect(ch.cells).toContainEqual({ employeeId: 'a', date: '2026-11-05', code: null });
+    expect(ch.notes).toEqual([{ employeeId: 'a', date: '2026-11-03', text: 'baja' }]);
+  });
+});

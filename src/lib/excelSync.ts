@@ -125,3 +125,69 @@ export function staleMinutes(fileTime: Date, now: Date, limit = STALE_MINUTES): 
   const mins = Math.floor((now.getTime() - from.getTime()) / 60000);
   return mins > limit ? mins : null;
 }
+
+export type DiffKind = 'code-diff' | 'code-app-only' | 'note-diff' | 'note-app-only';
+
+export interface DiffRow {
+  emp: Employee;
+  date: string;
+  kind: DiffKind;
+  app: string | null;
+  excel: string | null;
+}
+
+/**
+ * Comparación COMPLETA entre el Excel y la app (no solo lo que ha cambiado desde
+ * la última lectura), dentro de las fechas que cubre el Excel y solo para las
+ * personas que están en los dos. Incluye lo que la app tiene y el Excel no
+ * (borrados en el Excel, o cosas hechas solo en la app): el usuario elige qué aplicar.
+ */
+export function fullDiff(
+  next: Snapshot, from: string, to: string,
+  employees: Employee[], entries: Map<string, Entry>, notes: Map<string, Note>, codes: Code[],
+): DiffRow[] {
+  const empByKey = new Map<string, Employee>();
+  for (const e of employees) if (!empByKey.has(personKey(e.nombre)) || e.activo) empByKey.set(personKey(e.nombre), e);
+  const inExcel = new Map<string, Employee>(); // id → emp, solo personas del Excel
+  for (const k of next.people.keys()) { const e = empByKey.get(k); if (e) inExcel.set(e.id, e); }
+  const known = new Set(codes.map((c) => c.code));
+  const rows: DiffRow[] = [];
+  const seen = new Set<string>();
+
+  for (const [k, v] of next.cells) {
+    const sep = k.lastIndexOf('|');
+    const emp = empByKey.get(k.slice(0, sep));
+    const date = k.slice(sep + 1);
+    if (!emp || date < from || date > to) continue;
+    const appKey = `${emp.id}|${date}`;
+    seen.add(appKey);
+    const appCode = entries.get(appKey)?.code ?? null;
+    const appNote = notes.get(appKey)?.text?.trim() || null;
+    const xCode = v.code ?? null;
+    const xNote = v.note ?? null;
+    if (xCode !== appCode && (!xCode || known.has(xCode))) {
+      rows.push({ emp, date, kind: xCode ? 'code-diff' : 'code-app-only', app: appCode, excel: xCode });
+    }
+    if (xNote !== appNote) rows.push({ emp, date, kind: xNote ? 'note-diff' : 'note-app-only', app: appNote, excel: xNote });
+  }
+  // Lo que la app tiene en días en los que el Excel está vacío
+  for (const [appKey, en] of entries) {
+    if (seen.has(appKey) || en.date < from || en.date > to) continue;
+    const emp = inExcel.get(en.employeeId);
+    if (emp) rows.push({ emp, date: en.date, kind: 'code-app-only', app: en.code, excel: null });
+  }
+  for (const [appKey, n] of notes) {
+    if (seen.has(appKey) || n.date < from || n.date > to || !n.text.trim()) continue;
+    const emp = inExcel.get(n.employeeId);
+    if (emp) rows.push({ emp, date: n.date, kind: 'note-app-only', app: n.text.trim(), excel: null });
+  }
+  return rows.sort((a, b) => a.emp.nombre.localeCompare(b.emp.nombre) || a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind));
+}
+
+/** Convierte las filas elegidas en cambios para la app (el valor del Excel manda). */
+export function rowsToChanges(rows: DiffRow[]): { cells: CellChange[]; notes: NoteChange[] } {
+  return {
+    cells: rows.filter((r) => r.kind.startsWith('code')).map((r) => ({ employeeId: r.emp.id, date: r.date, code: r.excel })),
+    notes: rows.filter((r) => r.kind.startsWith('note')).map((r) => ({ employeeId: r.emp.id, date: r.date, text: r.excel })),
+  };
+}

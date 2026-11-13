@@ -8,6 +8,7 @@ import { exportToExcel } from '../lib/excelExport';
 import { Modal, useUi, Empty } from '../components/ui';
 import { AdminGate, useAdmin } from '../components/admin';
 import type { ExcelSync } from '../data/useExcelSync';
+import type { DiffKind } from '../lib/excelSync';
 import { relativeTime } from '../lib/dates';
 
 /** Copias de seguridad, exportar a Excel e importar el Excel antiguo. */
@@ -261,11 +262,13 @@ function SyncPanel({ sync, user }: { sync: ExcelSync; user: AppUser }) {
           <div className="inline-form" style={{ marginTop: 10 }}>
             {s.state === 'needs-permission' && <button className="primary" onClick={s.resume}>▶ Reanudar (dar permiso)</button>}
             {s.state !== 'needs-permission' && <button onClick={s.checkNow} disabled={s.checking}>{s.checking ? '⏳ Comprobando…' : '🔄 Comprobar ahora'}</button>}
+            {s.state !== 'needs-permission' && <button onClick={s.compare} disabled={s.checking} title="Compara el Excel entero con la app, borrados incluidos, y te deja elegir qué aplicar">🔍 Revisar diferencias con el Excel</button>}
             <button className="danger-ghost" onClick={s.stop}>Desactivar</button>
           </div>
         </>
       )}
       {s.warnings.map((w) => <p key={w} className="warn-box small">{w}</p>)}
+      {s.review && s.review.rows.length > 0 && <ReviewDialog sync={s} />}
       {s.pending && (
         <Modal title="Primera sincronización con el Excel" onClose={() => s.stop()} footer={<>
           <button onClick={() => s.confirmFirst(false)}>Empezar desde ahora</button>
@@ -288,5 +291,66 @@ function SyncPanel({ sync, user }: { sync: ExcelSync; user: AppUser }) {
         </Modal>
       )}
     </section>
+  );
+}
+
+const KIND: Record<DiffKind, { label: string; help: string; def: boolean }> = {
+  'code-diff': { label: 'Claves distintas o que faltan en la app', help: 'El Excel tiene una clave distinta (o la app no tiene ninguna). Se pone la del Excel.', def: true },
+  'code-app-only': { label: 'Claves que el Excel ya no tiene', help: 'Borradas en el Excel o puestas solo en la app (p. ej. PC de una planificación). Se quitan de la app.', def: true },
+  'note-diff': { label: 'Notas distintas o que faltan en la app', help: 'Se pone la nota del Excel.', def: true },
+  'note-app-only': { label: 'Notas que el Excel no tiene', help: 'Incluye las notas y tareas hechas solo en la app (🩺, 📌…). Se borran de la app.', def: false },
+};
+
+/** Revisión completa Excel ↔ app: el usuario elige qué tipos y qué filas aplicar. */
+function ReviewDialog({ sync }: { sync: ExcelSync }) {
+  const rows = sync.review!.rows;
+  const [kinds, setKinds] = useState<Set<DiffKind>>(() => new Set((Object.keys(KIND) as DiffKind[]).filter((k) => KIND[k].def)));
+  const [off, setOff] = useState<Set<number>>(new Set());
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  const count = (k: DiffKind) => rows.filter((r) => r.kind === k).length;
+  const chosen = rows.filter((r, i) => kinds.has(r.kind) && !off.has(i));
+  const visible = rows.map((r, i) => ({ r, i })).filter(({ r }) => kinds.has(r.kind) && (!q.trim() || r.emp.nombre.toLowerCase().includes(q.trim().toLowerCase())));
+  const show = (v: string | null) => (v == null ? <span className="muted">(vacío)</span> : v.length > 60 ? `${v.slice(0, 60)}…` : v);
+  const apply = async () => { setBusy(true); await sync.applyReview(chosen); setBusy(false); };
+  return (
+    <Modal title="🔍 Diferencias entre el Excel y la app" wide onClose={sync.closeReview} footer={<>
+      <span className="muted small" style={{ marginRight: 'auto' }}>Se aplica el valor del Excel. Queda en el Historial como un solo lote y se puede deshacer.</span>
+      <button onClick={sync.closeReview}>Cancelar</button>
+      <button className="primary" disabled={busy || !chosen.length} onClick={apply}>{busy ? 'Aplicando…' : `Aplicar ${chosen.length} cambio(s)`}</button>
+    </>}>
+      <div className="form">
+        <p className="muted small">Comparación del Excel entero (guardado el {formatDateTime(sync.review!.fileTime)}) con la app, del {formatDate(sync.review!.from)} al {formatDate(sync.review!.to)}, solo para las personas que están en los dos.</p>
+        <div className="review-kinds">
+          {(Object.keys(KIND) as DiffKind[]).map((k) => (
+            <label key={k} className="check" title={KIND[k].help}>
+              <input type="checkbox" checked={kinds.has(k)} disabled={!count(k)}
+                onChange={(e) => setKinds((s) => { const n = new Set(s); if (e.target.checked) n.add(k); else n.delete(k); return n; })} />
+              <span><b>{KIND[k].label}</b> ({count(k)})<br /><span className="muted small">{KIND[k].help}</span></span>
+            </label>
+          ))}
+        </div>
+        <input className="search" placeholder="🔍 Filtrar por persona…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="table-scroll review-table">
+          <table className="table small">
+            <thead><tr><th /><th>Persona</th><th>Día</th><th>Qué</th><th>En la app</th><th>En el Excel</th></tr></thead>
+            <tbody>
+              {visible.slice(0, 600).map(({ r, i }) => (
+                <tr key={i} className={off.has(i) ? 'inactive' : ''}>
+                  <td><input type="checkbox" checked={!off.has(i)} aria-label="Aplicar esta fila"
+                    onChange={() => setOff((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} /></td>
+                  <td>{r.emp.nombre}</td>
+                  <td className="nowrap">{formatDate(r.date)}</td>
+                  <td className="nowrap">{r.kind.startsWith('code') ? 'Clave' : 'Nota'}</td>
+                  <td>{show(r.app)}</td>
+                  <td>{show(r.excel)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {visible.length > 600 && <p className="muted small pad">… y {visible.length - 600} más (se aplican igualmente si su tipo está marcado).</p>}
+        </div>
+      </div>
+    </Modal>
   );
 }
