@@ -3,7 +3,7 @@ import type { DataStore } from './store';
 import type { AppData } from './useAppData';
 import { idbDel, idbGet, idbSet } from './idb';
 import { parseWorkbook } from '../lib/excelImport';
-import { deserializeSnapshot, planSync, serializeSnapshot, snapshotOf, staleMinutes, type Snapshot, type SyncPlan } from '../lib/excelSync';
+import { deserializeSnapshot, fullDiff, planSync, rowsToChanges, serializeSnapshot, snapshotOf, staleMinutes, type DiffRow, type Snapshot, type SyncPlan } from '../lib/excelSync';
 
 /**
  * Sincronización Excel (SharePoint sincronizado con OneDrive en este PC) → app.
@@ -39,6 +39,11 @@ export interface ExcelSync {
   warnings: string[];
   /** Primera vez: diferencias entre el Excel y la app para que el usuario decida. */
   pending: { plan: SyncPlan; fileName: string } | null;
+  /** Revisión completa de diferencias Excel ↔ app (abierta). */
+  review: { rows: DiffRow[]; from: string; to: string; fileTime: string } | null;
+  compare: () => Promise<void>;
+  applyReview: (rows: DiffRow[]) => Promise<void>;
+  closeReview: () => void;
   /** Hay una comprobación en marcha. */
   checking: boolean;
   choose: () => Promise<void>;
@@ -72,6 +77,8 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
   const firstSnap = useRef<{ snap: Snapshot; lastModified: number } | null>(null);
   const busy = useRef(false);
   const [checking, setChecking] = useState(false);
+  const [review, setReview] = useState<ExcelSync['review']>(null);
+  const reviewSnap = useRef<{ snap: Snapshot; lastModified: number } | null>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
   const notifyRef = useRef(notify);
@@ -225,6 +232,59 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
     }
   }, []);
 
+  /** Compara el Excel entero con la app (borrados incluidos) para revisar y elegir qué aplicar. */
+  const compare = useCallback(async () => {
+    const c = cfg.current;
+    if (!c) return;
+    if (busy.current) { notifyRef.current('Ya se está leyendo el Excel; espera unos segundos.', 'info'); return; }
+    busy.current = true;
+    setChecking(true);
+    try {
+      const file = await withTimeout(c.handle.getFile(), 30000, 'El archivo no responde. Comprueba que OneDrive está sincronizado.');
+      const res = parseWorkbook(await file.arrayBuffer());
+      const snap = snapshotOf(res.dataset);
+      const from = res.stats.from ?? '2000-01-01';
+      const to = res.stats.to ?? '2000-01-01';
+      const [list, noteList] = await Promise.all([store.loadEntries(from, to), store.loadNotes(from, to)]);
+      const d = dataRef.current;
+      const rows = fullDiff(snap, from, to, d.employees,
+        new Map(list.map((e) => [`${e.employeeId}|${e.date}`, e])),
+        new Map(noteList.map((n) => [`${n.employeeId}|${n.date}`, n])), d.codes);
+      reviewSnap.current = { snap, lastModified: file.lastModified };
+      setFileTime(new Date(file.lastModified).toISOString());
+      setReview({ rows, from, to, fileTime: new Date(file.lastModified).toISOString() });
+      if (!rows.length) notifyRef.current('✓ La app y el Excel coinciden: no hay diferencias.', 'ok');
+    } catch (e) {
+      notifyRef.current(`No se pudo comparar con el Excel: ${(e as Error).message}`, 'error');
+    } finally {
+      busy.current = false;
+      setChecking(false);
+    }
+  }, [store]);
+
+  const applyReview = useCallback(async (rows: DiffRow[]) => {
+    const c = cfg.current;
+    const r = reviewSnap.current;
+    if (!c || !r) return;
+    try {
+      const { cells, notes } = rowsToChanges(rows);
+      if (cells.length || notes.length) {
+        await store.applyExternal(cells, notes, `Revisión de diferencias con el Excel · ${c.fileName}`);
+        await dataRef.current.reloadAll();
+      }
+      // A partir de ahora la sincronización compara con este Excel ya revisado
+      await idbSet(BASE, serializeSnapshot(r.snap));
+      c.lastModified = r.lastModified;
+      await saveCfg(c);
+      setReview(null);
+      notifyRef.current(cells.length || notes.length
+        ? `✓ Aplicadas ${cells.length} clave(s) y ${notes.length} nota(s) del Excel. Queda en el Historial y se puede deshacer de una vez.`
+        : 'Revisión cerrada sin aplicar cambios.', 'ok');
+    } catch (e) {
+      notifyRef.current(`No se pudieron aplicar: ${(e as Error).message}`, 'error');
+    }
+  }, [store]);
+
   const confirmFirst = useCallback(async (doApply: boolean) => {
     const c = cfg.current;
     const first = firstSnap.current;
@@ -267,5 +327,6 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
   return {
     state: supported() ? state : 'unsupported', fileName, lastCheck, fileTime, stale, last, error, warnings, pending,
     checking, choose, confirmFirst, resume, stop, checkNow,
+    review, compare, applyReview, closeReview: () => setReview(null),
   };
 }
