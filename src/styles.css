@@ -502,3 +502,6 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 .sync-dot.needs-permission { background: #e0a800; box-shadow: 0 0 0 4px rgba(224,168,0,0.2); }
 .sync-dot.error { background: var(--danger); box-shadow: 0 0 0 4px rgba(192,57,43,0.18); }
 .banner.sync-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: #fff8e1; }
+.sync-pill.stale { background: #f0b429; color: #3d2c00; border-color: #f0b429; font-weight: 700; }
+.stale-box { margin: 8px 0 0; }
+.stale-box ol { margin: 6px 0 0; padding-left: 18px; }
