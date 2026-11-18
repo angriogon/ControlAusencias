@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataStore } from './store';
-import { DEFAULT_OPS, type CellChange, type Code, type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type OpsConfig } from '../types';
+import { DEFAULT_OPS, type GroupsConfig, type CellChange, type Code, type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type OpsConfig } from '../types';
+import { parseGroups } from '../lib/groups';
 
 export const entryKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
 
@@ -172,6 +173,15 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
   const saveOps = useCallback(async (next: OpsConfig, label: string) => {
     await store.saveSetting('ops', next, label);
     setSettings((s) => ({ ...s, ops: next }));
+  }, [store]);
+
+  /** Grupos de personal (UNEI, INPLANT…) para sombrear nombres. */
+  const groups = useMemo<GroupsConfig>(() => parseGroups(settings.grupos), [settings]);
+
+  /** Guarda los grupos (requiere modo admin en el servidor). */
+  const saveGroups = useCallback(async (next: GroupsConfig, label: string) => {
+    await store.saveSetting('grupos', next, label);
+    setSettings((s) => ({ ...s, grupos: next }));
   }, [store]);
 
   /** Aplica cambios: se ven ya y se guardan en segundo plano. Devuelve true si se guardó. */
@@ -346,6 +356,8 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     notes,
     loading,
     ops,
+    groups,
+    saveGroups,
     saveOps,
     status,
     canEdit,

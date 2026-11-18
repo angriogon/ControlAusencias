@@ -10,6 +10,7 @@ import { AdminGate, useAdmin } from '../components/admin';
 import type { ExcelSync } from '../data/useExcelSync';
 import type { DiffKind } from '../lib/excelSync';
 import { relativeTime } from '../lib/dates';
+import { keepSiglas } from '../lib/siglas';
 
 /** Copias de seguridad, exportar a Excel e importar el Excel antiguo. */
 export function DataView({ store, data, user, sync }: { store: DataStore; data: AppData; user: AppUser; sync: ExcelSync }) {
@@ -80,7 +81,18 @@ export function DataView({ store, data, user, sync }: { store: DataStore; data: 
     if (!f) return;
     wrap('parse', async () => {
       const buf = await f.arrayBuffer();
-      setPreview(parseWorkbook(buf));
+      const parsed = parseWorkbook(buf);
+      // El Excel no trae siglas: se conservan las ya asignadas (por nombre)
+      const { employees, kept } = keepSiglas(parsed.dataset.employees, data.employees);
+      const lost = data.employees.filter((e) => e.activo && e.siglas).length - kept;
+      setPreview({
+        ...parsed,
+        dataset: { ...parsed.dataset, employees },
+        warnings: [
+          `🔒 Se conservan las siglas de ${kept} persona(s).${lost > 0 ? ` ${lost} persona(s) con siglas no están en este Excel (o con otro nombre): sus siglas no pasan.` : ''}`,
+          ...parsed.warnings,
+        ],
+      });
     });
   };
 

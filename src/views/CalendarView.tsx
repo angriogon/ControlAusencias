@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppData } from '../data/useAppData';
 import { entryKey } from '../data/useAppData';
 import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type Code, type Employee, type PresenceUser } from '../types';
@@ -11,6 +11,7 @@ import { Modal, useUi } from '../components/ui';
 import { EmployeeCard } from './EmployeeCard';
 import { PlanningImport } from './PlanningImport';
 import { coverageImpact, type CoverageWarning } from '../lib/ops';
+import { groupOf } from '../lib/groups';
 
 type GroupBy = 'none' | 'equipo' | 'zona' | 'teamLeader' | 'sede';
 const GROUP_LABEL: Record<GroupBy, string> = { none: 'Sin agrupar', equipo: 'Equipo', zona: 'Zona', teamLeader: 'Team leader', sede: 'Sede' };
@@ -58,10 +59,17 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
   const active = useMemo(() => data.employees.filter((e) => e.activo), [data.employees]);
   const opts = (k: keyof Employee) => [...new Set(active.map((e) => String(e[k] ?? '')).filter(Boolean))].sort();
 
+  const groupFor = useCallback((e: Employee) => groupOf(data.groups, e), [data.groups]);
+  // Leyenda: solo los grupos que tiene alguien del calendario
+  const usedGroups = useMemo(() => {
+    const ids = new Set(active.map((e) => groupFor(e)?.id).filter(Boolean));
+    return data.groups.lista.filter((g) => ids.has(g.id));
+  }, [active, groupFor, data.groups]);
+
   const filtered = useMemo(() => {
     return active.filter((e) => (!equipo || e.equipo === equipo) && (!zona || e.zona === zona) && (!tl || e.teamLeader === tl)
-      && matches(q, e.nombre, e.siglas, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader));
-  }, [active, q, equipo, zona, tl]);
+      && matches(q, e.nombre, e.siglas, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader, groupFor(e)?.nombre));
+  }, [active, q, equipo, zona, tl, groupFor]);
 
   const { rows, ordered } = useMemo(() => {
     if (groupBy === 'none') {
@@ -148,8 +156,18 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
 
       {showLegend && <Legend codes={data.codes} used={usedCodes} />}
 
+      {usedGroups.length > 0 && (
+        <div className="grp-legend" aria-label="Grupos de personal">
+          {usedGroups.map((g) => (
+            <button key={g.id} className="link grp-chip" onClick={() => setQ(q === g.nombre ? '' : g.nombre)} title={`Ver solo ${g.nombre} (clic otra vez para quitar)`}>
+              <span className="grp-swatch" style={{ background: g.color }} />{g.nombre}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="hint">
-        Clic en un día para marcarlo · arrastra para varios · Supr borra clave y nota · clic en un nombre = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
+        Clic en un día para marcarlo · arrastra para varios · Supr borra clave y nota · clic en un nombre = copiar nombre y teléfono · ▦ = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
       </div>
 
       {ordered.length === 0
@@ -173,6 +191,7 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
             onCursor={onCursor}
             onOpenEmployee={setCard}
             onSaveSiglas={onSaveSiglas}
+            groupOf={groupFor}
             focus={focus}
             ensureYears={async (ys) => { await Promise.all(ys.map((y) => data.loadYear(y))); }}
           />

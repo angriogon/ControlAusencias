@@ -8,6 +8,7 @@ import {
 import { demoDataset } from './demo';
 import { idbGet, idbSet, idbDel } from './idb';
 import { colorForName } from '../lib/colors';
+import { keepSiglas } from '../lib/siglas';
 
 const USER_KEY = 'ca-local-user';
 const ADMIN_HASH = 'ca-local-admin-hash';
@@ -356,7 +357,9 @@ export class LocalStore implements DataStore {
   private async replaceAll(d: Dataset, label: string, action: 'restore' | 'import') {
     await this.createSnapshot(`Automática antes de: ${label}`, true);
     const s = this.state;
-    s.employees = new Map(d.employees.map((e) => [e.id, e]));
+    // Las siglas ya asignadas no se pierden (el Excel y las copias antiguas no las traen)
+    const { employees } = keepSiglas(d.employees, [...s.employees.values()]);
+    s.employees = new Map(employees.map((e) => [e.id, e]));
     s.codes = new Map(d.codes.map((c) => [c.code, c]));
     s.entries = new Map(d.entries.map((e) => [ek(e.employeeId, e.date), e]));
     s.notes = new Map((d.notes ?? []).map((n) => [ek(n.employeeId, n.date), n]));

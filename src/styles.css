@@ -509,3 +509,22 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 .review-kinds label.check { align-items: flex-start; }
 .review-table { max-height: 320px; }
 @media (max-width: 900px) { .review-kinds { grid-template-columns: 1fr; } }
+
+/* ---------- Clic en el nombre = copiar · ▦ = seleccionar el mes ---------- */
+.person.with-sel .person-btn { padding-right: 46px; }
+.rowsel-btn {
+  position: absolute; right: 26px; top: 50%; transform: translateY(-50%); border: none; background: transparent;
+  color: var(--muted); padding: 2px 4px; font-size: 13px; border-radius: 6px; opacity: 0.55;
+}
+.person:hover .rowsel-btn { opacity: 1; }
+.rowsel-btn:hover { background: var(--brand-soft) !important; color: var(--brand); }
+.person-btn { cursor: copy; }
+
+/* ---------- Grupos de personal (UNEI, INPLANT…): sombreado de nombre y siglas ---------- */
+.grid .person.grp, .grid td.sig.grp { background: var(--grp); }
+.grid .person.grp.selrow { background: #e3edf8; box-shadow: inset 5px 0 0 var(--grp); }
+.grp-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; margin: 0 0 8px; }
+.grp-legend .grp-chip { display: inline-flex; align-items: center; gap: 6px; }
+.grp-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line-strong); vertical-align: middle; flex: none; }
+.grp-row-name { display: inline-flex; align-items: center; gap: 8px; }
+.groups-table input[type="color"] { width: 44px; height: 28px; padding: 1px; }

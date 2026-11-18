@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from 'react';
-import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type NoteChange, type Code, type Employee, type Entry, type Note, type PresenceUser } from '../types';
+import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type NoteChange, type Code, type Employee, type Entry, type Note, type PersonGroup, type PresenceUser } from '../types';
 import { entryKey } from '../data/useAppData';
 import { WEEKDAY_LETTER, formatDate, formatDateLong, isWeekend, isoWeek, parseIso, todayIso, weekday } from '../lib/dates';
 import { normalizeCode } from '../lib/codes';
@@ -8,6 +8,7 @@ import { frequentNotes, noteIcon, repeatDates } from '../lib/notes';
 import { CodePicker, type PickerResult } from './CodePicker';
 import { useUi } from './ui';
 import { useAdmin } from './admin';
+import { contactText, copyText } from '../lib/groups';
 
 export interface Pos { r: number; c: number }
 interface Sel { a: Pos; f: Pos }
@@ -38,6 +39,8 @@ interface Props {
   ensureYears?: (years: number[]) => Promise<void>;
   /** Modo admin: editar las siglas directamente en su celda. Devuelve true si se guardó. */
   onSaveSiglas?: (e: Employee, siglas: string) => Promise<boolean>;
+  /** Grupo de personal de cada persona (sombrea su nombre y siglas). */
+  groupOf?: (e: Employee) => PersonGroup | undefined;
 }
 
 const rect = (s: Sel) => ({
@@ -57,6 +60,13 @@ export function Grid(p: Props) {
   const notesRef = useRef(p.notes);
   notesRef.current = p.notes;
   const lastCol = p.days.length - 1;
+
+  /** Clic en el nombre: copia «NOMBRE» y debajo el teléfono, listo para pegar. */
+  const copyContact = useCallback(async (emp: Employee) => {
+    const text = contactText(emp);
+    if (!(await copyText(text))) { toast('No se ha podido copiar. Prueba otra vez.', 'error'); return; }
+    toast(emp.telefono?.trim() ? `📋 Copiado: ${text.replace('\n', ' · ')}` : `📋 Copiado ${text} (no tiene teléfono en su ficha)`, emp.telefono?.trim() ? 'ok' : 'warn');
+  }, [toast]);
 
   // Si cambia el mes o el filtro, la selección deja de tener sentido
   useEffect(() => { setSel(null); setPicker(null); }, [p.days[0], p.employees.length]);
@@ -358,12 +368,22 @@ export function Grid(p: Props) {
     if (!ctx) return 280;
     ctx.font = '600 12px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
     const widest = Math.max(0, ...p.employees.map((e) => ctx.measureText(e.nombre).width));
-    return Math.round(Math.min(440, Math.max(200, widest + 44))); // 44 = márgenes + botón ⓘ
+    // 44 = márgenes + botón ⓘ; +22 con el botón ▦ de seleccionar el mes
+    return Math.round(Math.min(460, Math.max(200, widest + 44 + (p.canEdit ? 22 : 0))));
+  }, [p.employees, p.canEdit]);
+
+  // La columna «Siglas» se ajusta a las siglas más largas
+  const sigWidth = useMemo(() => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx) return 64;
+    ctx.font = '700 11px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
+    const widest = Math.max(0, ...p.employees.map((e) => ctx.measureText(e.siglas ?? '').width * 1.04));
+    return Math.round(Math.min(120, Math.max(48, widest + 16)));
   }, [p.employees]);
 
   return (
     <div className="grid-wrap" ref={wrap} tabIndex={0} onKeyDown={onKey} aria-label="Calendario de ausencias"
-      style={{ ['--name-w' as string]: `${nameWidth}px` }}>
+      style={{ ['--name-w' as string]: `${nameWidth}px`, ['--sig-w' as string]: `${sigWidth}px` }}>
       <table className="grid">
         <thead>
           <tr className="weeks">
@@ -434,6 +454,8 @@ export function Grid(p: Props) {
                 onEnter={onCellEnter}
                 onSelectRow={selectRows}
                 onOpenEmployee={p.onOpenEmployee}
+                onCopy={copyContact}
+                group={p.groupOf?.(row.emp)}
               />
             );
           })}
@@ -508,6 +530,8 @@ interface RowProps {
   onEnter: (r: number, c: number) => void;
   onSelectRow: (r: number, shift: boolean, at: { x: number; y: number }) => void;
   onOpenEmployee: (e: Employee) => void;
+  onCopy: (e: Employee) => void;
+  group?: PersonGroup;
 }
 
 /** Fila memorizada: solo se repinta si cambian sus marcas, su selección o su resaltado. */
@@ -518,23 +542,31 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
   const remotes = p.remoteSig.split('\u0001');
   const flashing = new Set(p.flashSig ? p.flashSig.split(',') : []);
   const info = `${p.emp.nombre}\n${[p.emp.sede, p.emp.zona, p.emp.telefono && `Tel: ${p.emp.telefono}`, p.emp.extension && `Ext: ${p.emp.extension}`].filter(Boolean).join(' · ')}`;
+  const grp = p.group ? { ['--grp' as string]: p.group.color } : undefined;
+  const grpTip = p.group ? `\nGrupo: ${p.group.nombre}` : '';
   return (
     <tr>
-      <th className={`sticky-col name-col person ${p.rowSelected ? 'selrow' : ''}`} scope="row">
+      <th className={`sticky-col name-col person ${p.group ? 'grp' : ''} ${p.rowSelected ? 'selrow' : ''} ${p.canEdit ? 'with-sel' : ''}`} scope="row" style={grp}>
         <button
           className="person-btn"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => { if (p.canEdit) p.onSelectRow(p.ri, e.shiftKey, { x: e.clientX + 12, y: e.clientY + 12 }); else p.onOpenEmployee(p.emp); }}
-          title={`${info}\n\nClic: seleccionar todo el mes · Mayús+clic: varias personas`}
+          onClick={() => p.onCopy(p.emp)}
+          title={`${info}${grpTip}\n\nClic: copiar nombre y teléfono`}
         >
           <span className="pname">{p.emp.nombre}</span>
           <span className="psub">{[p.emp.equipo, p.emp.zona, p.emp.sede].filter(Boolean).join(' · ')}</span>
         </button>
+        {p.canEdit && (
+          <button className="rowsel-btn" onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => p.onSelectRow(p.ri, e.shiftKey, { x: e.clientX + 12, y: e.clientY + 12 })}
+            title="Seleccionar todo su mes · Mayús+clic: varias personas" aria-label={`Seleccionar el mes de ${p.emp.nombre}`}>▦</button>
+        )}
         <button className="info-btn" onClick={() => p.onOpenEmployee(p.emp)} title="Ver ficha (teléfono, resumen y notas)" aria-label={`Ficha de ${p.emp.nombre}`}>ⓘ</button>
       </th>
       {p.siglasEditable
-        ? <SiglasCell emp={p.emp} onSave={p.onSaveSiglas!} />
-        : <td className="sticky-col sig-col sig" title={p.emp.siglas ? `Siglas: ${p.emp.siglas}` : 'Sin siglas'}>{p.emp.siglas}</td>}
+        ? <SiglasCell emp={p.emp} onSave={p.onSaveSiglas!} style={grp} />
+        : <td className={`sticky-col sig-col sig ${p.group ? 'grp' : ''}`} style={grp}
+            title={p.emp.siglas ? `🔒 Siglas: ${p.emp.siglas}${grpTip}` : `Sin siglas${grpTip}`}>{p.emp.siglas}</td>}
       <td className={`sticky-col vac-col vac ${p.vacLeft != null && p.vacLeft < 0 ? 'neg' : ''}`}>{p.vacLeft ?? ''}</td>
       {p.days.map((d, ci) => {
         const code = codes[ci];
@@ -583,15 +615,27 @@ const GridRowView = memo(function GridRowView(p: RowProps) {
 }, (a, b) => a.sig === b.sig && a.noteSig === b.noteSig && a.iconSig === b.iconSig && a.remoteSig === b.remoteSig && a.selC0 === b.selC0 && a.selC1 === b.selC1
   && a.rowSelected === b.rowSelected && a.focusC === b.focusC && a.flashSig === b.flashSig && a.emp === b.emp && a.days === b.days
   && a.vacLeft === b.vacLeft && a.codeByKey === b.codeByKey && a.ri === b.ri && a.canEdit === b.canEdit
-  && a.siglasEditable === b.siglasEditable && a.onSaveSiglas === b.onSaveSiglas);
+  && a.siglasEditable === b.siglasEditable && a.onSaveSiglas === b.onSaveSiglas
+  && a.onCopy === b.onCopy && a.group === b.group);
 
-/** Celda de siglas editable (modo admin): clic → escribir → Enter guarda, Esc cancela. */
-function SiglasCell({ emp, onSave }: { emp: Employee; onSave: (e: Employee, siglas: string) => Promise<boolean> }) {
+/**
+ * Celda de siglas editable (modo admin): clic → escribir → Enter guarda, Esc cancela.
+ * Las siglas ya asignadas están bloqueadas: cambiarlas pide confirmación.
+ */
+function SiglasCell({ emp, onSave, style }: { emp: Employee; onSave: (e: Employee, siglas: string) => Promise<boolean>; style?: Record<string, string> }) {
+  const { confirm } = useUi();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(emp.siglas ?? '');
   const [busy, setBusy] = useState(false);
   const done = useRef(false);
-  const start = () => { setValue(emp.siglas ?? ''); done.current = false; setEditing(true); };
+  const start = async () => {
+    if (emp.siglas && !(await confirm({
+      title: '🔒 Siglas bloqueadas',
+      message: <><b>{emp.nombre}</b> ya tiene las siglas <b>{emp.siglas}</b>. Las planificaciones la buscan por ellas. ¿Seguro que quieres cambiarlas?</>,
+      ok: 'Cambiar siglas',
+    }))) return;
+    setValue(emp.siglas ?? ''); done.current = false; setEditing(true);
+  };
   const finish = async (save: boolean) => {
     if (done.current) return;
     done.current = true;
@@ -604,7 +648,8 @@ function SiglasCell({ emp, onSave }: { emp: Employee; onSave: (e: Employee, sigl
   };
   if (!editing) {
     return (
-      <td className="sticky-col sig-col sig editable" title="Modo admin: clic para editar las siglas"
+      <td className={`sticky-col sig-col sig editable ${style ? 'grp' : ''}`} style={style}
+        title={emp.siglas ? `🔒 Siglas bloqueadas: ${emp.siglas} · clic para cambiarlas (pide confirmación)` : 'Modo admin: clic para poner las siglas'}
         onMouseDown={(e) => e.preventDefault()} onClick={start}>
         {emp.siglas || <span className="sig-empty">＋</span>}
       </td>
