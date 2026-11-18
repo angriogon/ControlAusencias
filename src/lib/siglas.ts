@@ -23,6 +23,31 @@ export function makeSiglas(nombre: string): string {
 export const normSiglas = (s: string) => strip(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 /**
+ * Conserva las siglas ya asignadas al sustituir las fichas (importar el Excel, que no
+ * trae siglas). Se emparejan por nombre (sin tildes, mayúsculas ni espacios de más) y
+ * solo se rellenan las fichas nuevas que vengan sin siglas, sin repetir ninguna.
+ */
+export function keepSiglas(incoming: Employee[], current: Employee[]): { employees: Employee[]; kept: number } {
+  const key = (n: string) => strip(n).toLowerCase().replace(/\s+/g, ' ').trim();
+  const prev = new Map<string, string>();
+  for (const e of current) {
+    const k = key(e.nombre);
+    if (normSiglas(e.siglas ?? '') && (!prev.has(k) || e.activo)) prev.set(k, e.siglas);
+  }
+  const used = new Set(incoming.map((e) => normSiglas(e.siglas ?? '')).filter(Boolean));
+  let kept = 0;
+  const employees = incoming.map((e) => {
+    if (normSiglas(e.siglas ?? '')) return e;
+    const s = prev.get(key(e.nombre));
+    if (!s || used.has(normSiglas(s))) return e;
+    used.add(normSiglas(s));
+    kept++;
+    return { ...e, siglas: s };
+  });
+  return { employees, kept };
+}
+
+/**
  * Asigna siglas a quien no tenga, sin repetir ninguna (si ya existe, añade 2, 3…).
  * No toca las siglas que ya estén puestas.
  */

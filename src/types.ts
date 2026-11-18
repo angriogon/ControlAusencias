@@ -165,6 +165,35 @@ export interface OpsConfig {
 
 export const DEFAULT_OPS: OpsConfig = { equipos: ['TEC.P', 'TEC.P.EX', 'COLAB'], zonas: {} };
 
+/** Tipo de personal para sombrear su nombre (UNEI, INPLANT, colaboradores…). */
+export interface PersonGroup {
+  id: string;
+  nombre: string;
+  /** Color de fondo (claro, para que se lea el nombre). */
+  color: string;
+}
+
+/**
+ * Grupos de personal (se guardan en el servidor, ajuste «grupos»).
+ * Las personas se asignan por su NOMBRE normalizado y no por su id: así la
+ * asignación sobrevive a importar de nuevo el Excel (que crea fichas nuevas).
+ */
+export interface GroupsConfig {
+  lista: PersonGroup[];
+  /** personKey(nombre) → id del grupo. */
+  personas: Record<string, string>;
+}
+
+export const DEFAULT_GROUPS: GroupsConfig = {
+  lista: [
+    { id: 'unei', nombre: 'UNEI', color: '#FFF2A8' },
+    { id: 'inplant', nombre: 'INPLANT', color: '#CFE2FF' },
+    { id: 'colaboradores', nombre: 'COLABORADORES', color: '#D3F2DC' },
+    { id: 'subcontratas', nombre: 'SUBCONTRATAS', color: '#FFDDBE' },
+  ],
+  personas: {},
+};
+
 /** Usuario de la app (para gestionar roles). */
 export interface UserProfile {
   id: string;
