@@ -37,10 +37,13 @@ begin
       text_color = excluded.text_color, category = excluded.category, orden = excluded.orden, activo = excluded.activo;
   insert into public.employees select * from jsonb_populate_recordset(null::public.employees, p_data->'employees');
 
-  -- Recuperar siglas en las fichas que llegan sin ellas (sin chocar con las que ya hay)
+  -- Recuperar siglas en las fichas que llegan sin ellas (sin chocar con las que ya hay).
+  -- Si el nombre llega repetido, solo una ficha (la activa) recibe las siglas.
   update public.employees e set siglas = p.siglas
-    from _siglas_prev p
-   where coalesce(e.siglas, '') = '' and public.person_key(e.nombre) = p.k
+    from _siglas_prev p,
+         (select distinct on (public.person_key(nombre)) id from public.employees
+           where coalesce(siglas, '') = '' order by public.person_key(nombre), activo desc) one
+   where e.id = one.id and public.person_key(e.nombre) = p.k
      and not exists (select 1 from public.employees o where upper(o.siglas) = upper(p.siglas));
   get diagnostics v_kept = row_count;
 
