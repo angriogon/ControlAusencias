@@ -7,6 +7,7 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 - **Español de España**, directo, honesto y crítico; explica el porqué. No inventes datos (horarios, cifras, nombres): si no está confirmado, dilo.
 - Respeta exactamente nombres, siglas, claves y fechas que dé el usuario.
 - **Flujo de cambios**: rama `claude/<tema>` → probar → PR a `main` → **fusionar solo cuando el usuario diga «Fusiona»** (salvo que lo autorice expresamente en esa petición). Tras fusionar, comprobar que el workflow «Publicar en GitHub Pages» termina en verde y avisar de recargar con Ctrl+F5.
+- **Versiones**: cada fusión que cambie algo visible sube la versión. Añade la entrada arriba en `src/changelog.ts` (frases cortas, para el usuario) y pon el mismo número en `package.json` y `package-lock.json` (una prueba lo comprueba). MENOR (1.8 → 1.9) = funciones nuevas; ARREGLO (1.8.0 → 1.8.1) = correcciones y retoques. Cambios solo internos (docs, CI) no suben versión. La app muestra la versión junto al nombre y avisa de las novedades al actualizarse.
 - Para propuestas grandes: analiza, propone con prioridades y pregunta antes de implementar.
 - No elimines funcionalidades al añadir otras. Prioriza UX simple: la app la usan personas no técnicas.
 - Datos reales (Excel, planificaciones) **nunca** al repositorio (`.gitignore` bloquea `*.xlsx/*.xlsm`). Capturas para documentos: con datos ficticios (modo local).

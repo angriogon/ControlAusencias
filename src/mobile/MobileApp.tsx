@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../changelog';
 import { useEffect, useMemo, useState } from 'react';
 import type { AppData } from '../data/useAppData';
 import { entryKey } from '../data/useAppData';
@@ -18,8 +19,8 @@ type MTab = 'today' | 'people';
  * Vista para móvil: pensada para CONSULTAR (quién falta, ficha y teléfono de
  * cada persona) y para cambios ligeros de un día. Lo masivo se hace en el PC.
  */
-export function MobileApp({ data, user, onLogout, onDesktop, statusText }: {
-  data: AppData; user: AppUser; onLogout: () => void; onDesktop: () => void; statusText: string;
+export function MobileApp({ data, user, onLogout, onDesktop, statusText, onNews }: {
+  data: AppData; user: AppUser; onLogout: () => void; onDesktop: () => void; statusText: string; onNews: () => void;
 }) {
   const [tab, setTab] = useState<MTab>('today');
   const [person, setPerson] = useState<{ emp: Employee; date: string } | null>(null);
@@ -37,6 +38,7 @@ export function MobileApp({ data, user, onLogout, onDesktop, statusText }: {
             <div className="m-menu-box" onClick={(e) => e.stopPropagation()}>
               <p className="m-muted">{statusText}</p>
               <button className="m-btn" onClick={onDesktop}>🖥 Ver versión completa</button>
+              <button className="m-btn" onClick={() => { setMenu(false); onNews(); }}>🆕 Novedades · v{APP_VERSION}</button>
               <button className="m-btn danger" onClick={onLogout}>Cerrar sesión</button>
               <p className="m-muted small">La sesión se cierra sola tras 8 horas sin usar la app.</p>
             </div>

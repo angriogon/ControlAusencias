@@ -10,6 +10,8 @@ import { normSiglas } from './lib/siglas';
 import { OpsView, type Sub } from './views/OpsView';
 import { TodayStrip } from './views/TodayStrip';
 import { HelpDialog } from './views/HelpDialog';
+import { ChangelogDialog, useUpdateNotice } from './components/Changelog';
+import { APP_VERSION } from './changelog';
 import { AdminProvider, useAdmin, hhmm } from './components/admin';
 import { initials } from './lib/colors';
 import { UiProvider, useUi } from './components/ui';
@@ -60,6 +62,8 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   const [editing, setEditing] = useState<Employee | null>(null);
   const [online, setOnline] = useState<PresenceUser[]>([]);
   const [help, setHelp] = useState(false);
+  const [news, setNews] = useState(false);
+  useUpdateNotice(() => setNews(true));
   const [focus, setFocus] = useState<{ employeeId: string; date: string; n: number } | null>(null);
   const [opsSub, setOpsSub] = useState<{ sub: Sub; n: number } | null>(null);
   const goto = useCallback((employeeId: string, date: string) => { setFocus({ employeeId, date, n: Date.now() }); setTab('calendar'); }, []);
@@ -166,13 +170,20 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
 
   if (small && !forceDesktop) {
     if (data.loading) return <div className="splash">Cargando datos…</div>;
-    return <MobileApp data={effective} user={user} onLogout={onLogout} onDesktop={() => setDesktop(true)} statusText={statusText} />;
+    return (
+      <>
+        <MobileApp data={effective} user={user} onLogout={onLogout} onDesktop={() => setDesktop(true)} statusText={statusText} onNews={() => setNews(true)} />
+        {news && <ChangelogDialog onClose={() => setNews(false)} />}
+      </>
+    );
   }
 
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" /> Control de Ausencias</div>
+        <div className="brand"><img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" /> Control de Ausencias
+          <button className="ver-btn" onClick={() => setNews(true)} title="Ver novedades de cada versión">v{APP_VERSION}</button>
+        </div>
         <nav className="tabs" aria-label="Secciones">
           {TABS.map(([k, label]) => (
             <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
@@ -252,6 +263,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
       </main>
 
       {help && <HelpDialog onClose={() => setHelp(false)} />}
+      {news && <ChangelogDialog onClose={() => setNews(false)} />}
       {editing && tab !== 'settings' && admin.active && (
         <EmployeeForm initial={editing} isNew={false} others={data.employees} onClose={() => setEditing(null)} onSave={saveEditing} />
       )}

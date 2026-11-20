@@ -9,7 +9,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <h3>📅 Marcar el calendario</h3>
           <ul>
             <li><b>Un día:</b> clic en la celda → elige la clave (o escribe «v» y Enter).</li>
-            <li><b>Varios:</b> arrastra con el ratón. <b>Todo el mes de alguien:</b> clic en su nombre. <b>Un día para todos:</b> clic en el número del día.</li>
+            <li><b>Varios:</b> arrastra con el ratón. <b>Todo el mes de alguien:</b> botón ▦ junto a su nombre. <b>Copiar nombre y teléfono:</b> clic en el nombre. <b>Un día para todos:</b> clic en el número del día.</li>
             <li><b>Nota:</b> en la paleta, a la derecha. Elige el tipo (🩺 Médico, 🚐 Taller/ITV, 📌 Tarea, 🎓 Formación) y la hora; debajo salen textos que se usan a menudo.</li>
             <li>En la celda se ve el icono del tipo (o un triángulo rojo si es una nota normal). Pasando el ratón se lee.</li>
             <li>Una <b>📌 Tarea</b> se puede repetir cada semana o cada mes. Al marcar <b>P</b> o <b>A</b>, se ofrece apuntar el motivo.</li>
