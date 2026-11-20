@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { AppData } from '../data/useAppData';
 import { entryKey } from '../data/useAppData';
 import { MASS_PEOPLE_LIMIT, PROTECTED_CODES, type CellChange, type Code, type Employee, type PresenceUser } from '../types';
@@ -158,10 +158,9 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
         </div>
       </div>
 
-      {showLegend && <Legend codes={data.codes} used={usedCodes} />}
-
-      {usedGroups.length > 0 && (
+      {showLegend && <Legend codes={data.codes} used={usedCodes} extra={usedGroups.length > 0 && (
         <div className="grp-legend" aria-label="Grupos de personal">
+          <span className="grp-legend-title">Grupos:</span>
           {usedGroups.map((g) => (
             <button key={g.id} className={`link grp-chip ${grp === g.id ? 'on' : ''}`} aria-pressed={grp === g.id}
               onClick={() => setGrp(grp === g.id ? '' : g.id)} title={`Ver solo ${g.nombre} (clic otra vez para quitar)`}>
@@ -175,7 +174,7 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
             </button>
           )}
         </div>
-      )}
+      )} />}
 
       <div className="hint">
         Clic en un día para marcarlo · arrastra para varios · Supr borra clave y nota · clic en un nombre = copiar nombre y teléfono · ▦ = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
@@ -233,7 +232,7 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
   );
 }
 
-function Legend({ codes, used }: { codes: Code[]; used: Set<string> }) {
+function Legend({ codes, used, extra }: { codes: Code[]; used: Set<string>; extra?: ReactNode }) {
   return (
     <div className="legend" aria-label="Leyenda de claves">
       {codes.filter((c) => c.activo).map((c) => (
@@ -242,6 +241,7 @@ function Legend({ codes, used }: { codes: Code[]; used: Set<string> }) {
           {c.label}
         </span>
       ))}
+      {extra}
     </div>
   );
 }
