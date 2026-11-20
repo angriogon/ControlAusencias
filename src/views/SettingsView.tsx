@@ -33,8 +33,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
 
   const saveEmp = async (e: Employee) => {
     try {
-      await store.saveEmployee(e);
-      data.setEmployees((prev) => [...prev.filter((x) => x.id !== e.id), e]);
+      await data.saveEmployee(e);
       toast('Ficha guardada');
       return true;
     } catch (err) { toast((err as Error).message, 'error'); return false; }

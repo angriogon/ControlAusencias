@@ -43,6 +43,14 @@ interface Props {
   groupOf?: (e: Employee) => PersonGroup | undefined;
 }
 
+/** Ancho en píxeles del texto más largo con la fuente de la tabla (null si el navegador no puede medir). */
+function widestText(texts: string[], font: string): number | null {
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return null;
+  ctx.font = `${font} "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif`;
+  return Math.max(0, ...texts.map((t) => ctx.measureText(t).width));
+}
+
 const rect = (s: Sel) => ({
   r0: Math.min(s.a.r, s.f.r), r1: Math.max(s.a.r, s.f.r),
   c0: Math.min(s.a.c, s.f.c), c1: Math.max(s.a.c, s.f.c),
@@ -364,20 +372,17 @@ export function Grid(p: Props) {
 
   // La columna "Persona" se ajusta al nombre más largo para que se lean completos
   const nameWidth = useMemo(() => {
-    const ctx = document.createElement('canvas').getContext('2d');
-    if (!ctx) return 280;
-    ctx.font = '600 12px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
-    const widest = Math.max(0, ...p.employees.map((e) => ctx.measureText(e.nombre).width));
+    const widest = widestText(p.employees.map((e) => e.nombre), '600 12px');
+    if (widest == null) return 280;
     // 44 = márgenes + botón ⓘ; +22 con el botón ▦ de seleccionar el mes
     return Math.round(Math.min(460, Math.max(200, widest + 44 + (p.canEdit ? 22 : 0))));
   }, [p.employees, p.canEdit]);
 
   // La columna «Siglas» se ajusta a las siglas más largas
   const sigWidth = useMemo(() => {
-    const ctx = document.createElement('canvas').getContext('2d');
-    if (!ctx) return 64;
-    ctx.font = '700 11px "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif';
-    const widest = Math.max(0, ...p.employees.map((e) => ctx.measureText(e.siglas ?? '').width * 1.04));
+    const w = widestText(p.employees.map((e) => e.siglas ?? ''), '700 11px');
+    if (w == null) return 64;
+    const widest = w * 1.04;
     return Math.round(Math.min(120, Math.max(48, widest + 16)));
   }, [p.employees]);
 

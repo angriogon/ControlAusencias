@@ -5,7 +5,7 @@ export const MONTHS = [
 export const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 /** Letra de día igual que en el Excel (0 = domingo). */
 export const WEEKDAY_LETTER = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
-export const WEEKDAY_NAME = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const WEEKDAY_NAME = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 const pad = (n: number) => String(n).padStart(2, '0');
 

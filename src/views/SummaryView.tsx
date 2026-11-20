@@ -53,7 +53,7 @@ export function SummaryView({ data }: { data: AppData }) {
     return (typeof x === 'string' ? x.localeCompare(String(y)) : x - (y as number)) * sort.dir;
   });
   const th = (key: string, label: string, title?: string) => (
-    <th className="sortable" title={title} onClick={() => setSort((s) => ({ key, dir: s.key === key ? (-s.dir as 1 | -1) : (key === 'nombre' || key === 'orden' ? 1 : -1) }))}>
+    <th className={`sortable ${key === 'nombre' ? '' : 'num'}`} title={title} onClick={() => setSort((s) => ({ key, dir: s.key === key ? (-s.dir as 1 | -1) : (key === 'nombre' || key === 'orden' ? 1 : -1) }))}>
       {label}{sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
     </th>
   );

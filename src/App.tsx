@@ -130,8 +130,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
 
   const saveEditing = async (e: Employee) => {
     try {
-      await store.saveEmployee(e);
-      data.setEmployees((prev) => [...prev.filter((x) => x.id !== e.id), e]);
+      await data.saveEmployee(e);
       toast('Ficha guardada');
       setEditing(null);
     } catch (err) { toast((err as Error).message, 'error'); }
@@ -145,13 +144,11 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     const dupe = siglas && employeesRef.current.find((o) => o.id !== e.id && normSiglas(o.siglas ?? '') === siglas);
     if (dupe) { toast(`Las siglas ${siglas} ya las tiene ${dupe.nombre}`, 'error'); return false; }
     try {
-      const next = { ...e, siglas };
-      await store.saveEmployee(next);
-      data.setEmployees((prev) => [...prev.filter((x) => x.id !== e.id), next]);
+      await data.saveEmployee({ ...e, siglas });
       toast(siglas ? `Siglas de ${e.nombre}: ${siglas}` : `Siglas de ${e.nombre} borradas`);
       return true;
     } catch (err) { toast((err as Error).message, 'error'); return false; }
-  }, [store, toast, data.setEmployees]);
+  }, [toast, data.saveEmployee]);
 
   const others = useMemo(() => online.filter((u) => u.key !== 'me'), [online]);
 

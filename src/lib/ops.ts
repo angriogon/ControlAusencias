@@ -12,8 +12,8 @@ import { addDays, dateRange, isWeekend, parseIso, weekday } from './dates';
  *  - Cualquier otra clave de control (TS, TT, CZ…) o sin clave = disponible.
  */
 
-export const HOLIDAY_CODES = ['FN', 'FL'];
-export const isPcCode = (code: string | undefined) => !!code && code.toUpperCase().startsWith('PC');
+const HOLIDAY_CODES = ['FN', 'FL'];
+const isPcCode = (code: string | undefined) => !!code && code.toUpperCase().startsWith('PC');
 /** PC cuenta 1 día; PC de media jornada, medio. */
 export const pcWeight = (code: string | undefined) => (!isPcCode(code) ? 0 : /MJ/i.test(code!) ? 0.5 : 1);
 
@@ -21,7 +21,7 @@ const k = (id: string, date: string) => `${id}|${date}`;
 
 export type DayStatus = 'libre' | 'pc' | 'fuera' | 'festivo';
 
-export function dayStatus(code: string | undefined, absence: Set<string>): DayStatus {
+function dayStatus(code: string | undefined, absence: Set<string>): DayStatus {
   if (!code) return 'libre';
   if (HOLIDAY_CODES.includes(code)) return 'festivo';
   if (absence.has(code)) return 'fuera';
@@ -36,7 +36,7 @@ export function fieldStaff(employees: Employee[], cfg: OpsConfig): Employee[] {
   return employees.filter((e) => e.activo && eq.has(e.equipo));
 }
 
-export const zoneMin = (cfg: OpsConfig, zona: string) => Math.max(0, cfg.zonas[zona]?.minimo ?? 1);
+const zoneMin = (cfg: OpsConfig, zona: string) => Math.max(0, cfg.zonas[zona]?.minimo ?? 1);
 
 /** Zonas de los técnicos de campo, ordenadas. */
 export function zonesOf(staff: Employee[]): string[] {
