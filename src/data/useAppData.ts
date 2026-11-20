@@ -175,6 +175,12 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     setSettings((s) => ({ ...s, ops: next }));
   }, [store]);
 
+  /** Guarda una ficha y la deja ya actualizada en pantalla (lanza el error del servidor si falla). */
+  const saveEmployee = useCallback(async (e: Employee) => {
+    await store.saveEmployee(e);
+    setEmployees((prev) => [...prev.filter((x) => x.id !== e.id), e]);
+  }, [store]);
+
   /** Grupos de personal (UNEI, INPLANT…) para sombrear nombres. */
   const groups = useMemo<GroupsConfig>(() => parseGroups(settings.grupos), [settings]);
 
@@ -358,6 +364,7 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     ops,
     groups,
     saveGroups,
+    saveEmployee,
     saveOps,
     status,
     canEdit,

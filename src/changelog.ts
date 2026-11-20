@@ -19,6 +19,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '1.8.1',
+    date: '2026-11-20',
+    title: 'Limpieza y retoques',
+    changes: [
+      'Resumen: los títulos de las columnas numéricas quedan alineados con sus cifras.',
+      'Código más limpio por dentro (sin cambios en el uso).',
+    ],
+  },
+  {
     version: '1.8.0',
     date: '2026-11-20',
     title: 'Versiones y novedades',

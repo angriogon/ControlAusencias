@@ -15,7 +15,7 @@ export const NOTE_TYPES: { type: Exclude<NoteType, 'otra'>; emoji: string; label
   { type: 'tarea', emoji: '📌', label: 'Tarea' },
   { type: 'formacion', emoji: '🎓', label: 'Formación' },
 ];
-export const DONE = '✅';
+const DONE = '✅';
 export const typeInfo = (t: NoteType) => NOTE_TYPES.find((x) => x.type === t) ?? { type: 'otra' as const, emoji: '📝', label: 'Otra' };
 
 const KEYWORDS: [Exclude<NoteType, 'otra'>, RegExp][] = [

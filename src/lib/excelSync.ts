@@ -107,7 +107,7 @@ export function planSync(
 }
 
 /** Minutos sin cambios en el Excel a partir de los cuales se avisa (en horario laboral). */
-export const STALE_MINUTES = 120;
+const STALE_MINUTES = 120;
 
 /**
  * ¿OneDrive puede estar atascado? Desde el navegador no se ve SharePoint, así que se

@@ -120,7 +120,7 @@ function loadGrid(files: Record<string, Uint8Array>, target: string): Grid {
   return grid;
 }
 
-export function unzipWorkbook(buffer: ArrayBuffer | Uint8Array): Record<string, Uint8Array> {
+function unzipWorkbook(buffer: ArrayBuffer | Uint8Array): Record<string, Uint8Array> {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   try {
     return unzipSync(bytes, { filter: (f) => f.name.startsWith('xl/') && !f.name.includes('media/') && !f.name.endsWith('.bin') });

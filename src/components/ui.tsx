@@ -78,14 +78,6 @@ export function UiProvider({ children }: { children: ReactNode }) {
 }
 
 // ---------------- Chip de clave ----------------
-export function CodeChip({ code, color, textColor, small }: { code: string; color?: string; textColor?: string; small?: boolean }) {
-  return (
-    <span className={`chip ${small ? 'small' : ''}`} style={{ background: color ?? '#ddd', color: textColor ?? '#000' }}>
-      {code}
-    </span>
-  );
-}
-
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
