@@ -528,3 +528,12 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 .grp-swatch { display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line-strong); vertical-align: middle; flex: none; }
 .grp-row-name { display: inline-flex; align-items: center; gap: 8px; }
 .groups-table input[type="color"] { width: 44px; height: 28px; padding: 1px; }
+
+/* Barra de botones fija abajo en listas largas (Ajustes → Grupos).
+   bottom negativo = compensa el margen inferior de .page (40px) para que quede pegada al borde. */
+.sticky-actions {
+  position: sticky; bottom: -40px; z-index: 4; background: var(--panel);
+  margin: 8px -16px -14px; padding: 10px 16px 14px;
+  border-top: 1px solid var(--line); box-shadow: 0 -6px 12px rgba(16, 42, 67, 0.06);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
