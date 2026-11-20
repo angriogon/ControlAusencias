@@ -239,8 +239,8 @@ table.grid { border-collapse: separate; border-spacing: 0; user-select: none; fo
 .person.selrow { background: #e3edf8; }
 
 /* ---------- Modales y avisos ---------- */
-.overlay { position: fixed; inset: 0; background: rgba(16, 24, 40, 0.4); display: grid; place-items: center; z-index: 100; padding: 16px; }
-.modal { background: #fff; border-radius: 14px; width: 480px; max-width: 100%; max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: var(--shadow); }
+.overlay { position: fixed; inset: 0; background: rgba(16, 24, 40, 0.4); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; z-index: 100; padding: 16px; }
+.modal { background: #fff; border-radius: 14px; width: 480px; max-width: min(100%, calc(100vw - 32px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: var(--shadow); }
 .modal.wide { width: 760px; }
 .modal header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); }
 .modal header h2 { margin: 0; font-size: 17px; }
@@ -543,3 +543,23 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 /* Grupos dentro de la leyenda: franja propia debajo de las claves */
 .legend .grp-legend { flex-basis: 100%; margin: 4px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); }
 .grp-legend-title { color: var(--muted); font-weight: 600; }
+
+/* ---------- Versión y novedades ---------- */
+.ver-btn {
+  margin-left: 4px; padding: 1px 7px; font-size: 11px; font-weight: 600; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14); color: inherit; border: 1px solid rgba(255, 255, 255, 0.3); opacity: 0.85;
+}
+.ver-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.24) !important; }
+.changelog { list-style: none; margin: 0; padding: 0; }
+.changelog > li { border-bottom: 1px solid var(--line); }
+.changelog > li:last-child { border-bottom: none; }
+.changelog summary { display: flex; align-items: baseline; gap: 10px; padding: 8px 2px; cursor: pointer; list-style: none; }
+.changelog summary::-webkit-details-marker { display: none; }
+.changelog summary::before { content: '▸'; color: var(--muted); width: 10px; flex: none; }
+.changelog details[open] summary::before { content: '▾'; }
+.changelog summary b { flex: 1; font-weight: 600; }
+.changelog ul { margin: 0 0 10px 20px; padding-left: 16px; font-size: 13px; }
+.changelog ul li { margin: 3px 0; }
+.ver-tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #eef1f5; color: var(--muted); flex: none; min-width: 48px; text-align: center; }
+.ver-tag.current { background: var(--brand); color: #fff; }
+.changelog summary b { min-width: 0; }
