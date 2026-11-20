@@ -5,7 +5,7 @@ import {
   AdminRequiredError, ConflictError,
   type AdminStatus, type PresenceUser, type UserProfile,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
-  type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
+  type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo, type AppErrorReport, type AppErrorRow,
 } from '../types';
 
 // ---------- conversión filas SQL (snake_case) <-> app (camelCase) ----------
@@ -251,6 +251,22 @@ export class SupabaseStore implements DataStore {
   async saveSetting(key: string, value: unknown, label: string) {
     const { error } = await this.sb.rpc('save_setting', { p_key: key, p_value: value, p_label: label });
     fail(error);
+  }
+
+  async logError(e: AppErrorReport) {
+    // Sin await del resultado: si falla (sin conexión, migración 010 sin aplicar), no se hace nada
+    await this.sb.rpc('log_error', { p_message: e.message, p_stack: e.stack ?? null, p_version: e.version, p_url: e.url, p_user_agent: e.userAgent })
+      .then(() => undefined, () => undefined);
+  }
+
+  async listErrors(limit: number): Promise<AppErrorRow[]> {
+    const { data, error } = await this.sb.rpc('list_errors', { p_limit: limit });
+    if (error?.message?.includes('list_errors')) throw new Error('Falta aplicar la migración 010 (registro de errores) en Supabase.');
+    fail(error);
+    return (data as Row[]).map((r) => ({
+      id: r.id as number, ts: r.ts as string, userName: (r.user_name as string) ?? '', version: (r.version as string) ?? '',
+      message: r.message as string, stack: (r.stack as string) ?? undefined, url: (r.url as string) ?? '', userAgent: (r.user_agent as string) ?? '',
+    }));
   }
 
   async listProfiles(): Promise<UserProfile[]> {

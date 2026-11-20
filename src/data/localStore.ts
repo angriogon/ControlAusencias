@@ -3,7 +3,7 @@ import {
   AdminRequiredError, ConflictError, MASS_PEOPLE_LIMIT,
   type AdminStatus, type PresenceUser, type UserProfile,
   type AppUser, type CellChange, type ChangeFilter, type ChangeLog, type Code, type Dataset,
-  type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo,
+  type Employee, type Entry, type LiveEvent, type Note, type NoteChange, type SnapshotInfo, type AppErrorReport, type AppErrorRow,
 } from '../types';
 import { demoDataset } from './demo';
 import { idbGet, idbSet, idbDel } from './idb';
@@ -252,6 +252,19 @@ export class LocalStore implements DataStore {
     await idbSet('settings', { ...all, [key]: value });
     this.state.changes.push(this.log(new Date().toISOString(), this.userName(), 'system', null, null, null, null, crypto.randomUUID(), label, null));
     await this.persist();
+  }
+
+  // En modo local los errores se guardan en este navegador (los 50 últimos)
+  async logError(e: AppErrorReport) {
+    try {
+      const list = (await idbGet<AppErrorRow[]>('errors')) ?? [];
+      list.unshift({ ...e, id: Date.now(), ts: new Date().toISOString(), userName: this.userName() });
+      await idbSet('errors', list.slice(0, 50));
+    } catch { /* nunca falla */ }
+  }
+
+  async listErrors(limit: number) {
+    return ((await idbGet<AppErrorRow[]>('errors')) ?? []).slice(0, limit);
   }
 
   async listProfiles(): Promise<UserProfile[]> {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataStore } from './data/store';
 import { createStore } from './data';
 import { useAppData } from './data/useAppData';
@@ -7,19 +7,54 @@ import type { AppUser, CellChange, Employee, PresenceUser } from './types';
 import { coverageImpact } from './lib/ops';
 import { formatDate } from './lib/dates';
 import { normSiglas } from './lib/siglas';
-import { OpsView, type Sub } from './views/OpsView';
+import type { Sub } from './views/OpsView';
 import { TodayStrip } from './views/TodayStrip';
-import { HelpDialog } from './views/HelpDialog';
-import { ChangelogDialog, useUpdateNotice } from './components/Changelog';
+import { useUpdateNotice } from './components/Changelog';
 import { APP_VERSION } from './changelog';
 import { AdminProvider, useAdmin, hhmm } from './components/admin';
 import { initials } from './lib/colors';
 import { UiProvider, useUi } from './components/ui';
-import { CalendarView } from './views/CalendarView';
-import { BackupView, type BackupSub } from './views/BackupView';
-import { SettingsView, EmployeeForm } from './views/SettingsView';
+import type { BackupSub } from './views/BackupView';
 import { Login } from './views/Login';
-import { MobileApp } from './mobile/MobileApp';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { installErrorLogging, reportError } from './lib/errorLog';
+
+/*
+ * Cada sección se descarga al abrirla (la app arranca antes) y, ya abierta la app,
+ * las demás se precargan en segundo plano para que cambiar de pestaña sea inmediato.
+ */
+const load = {
+  calendar: () => import('./views/CalendarView'),
+  ops: () => import('./views/OpsView'),
+  backup: () => import('./views/BackupView'),
+  settings: () => import('./views/SettingsView'),
+  form: () => import('./views/settings/EmployeeForm'),
+  help: () => import('./views/HelpDialog'),
+  news: () => import('./components/ChangelogDialog'),
+  mobile: () => import('./mobile/MobileApp'),
+};
+const CalendarView = lazy(() => load.calendar().then((m) => ({ default: m.CalendarView })));
+const OpsView = lazy(() => load.ops().then((m) => ({ default: m.OpsView })));
+const BackupView = lazy(() => load.backup().then((m) => ({ default: m.BackupView })));
+const SettingsView = lazy(() => load.settings().then((m) => ({ default: m.SettingsView })));
+const EmployeeForm = lazy(() => load.form().then((m) => ({ default: m.EmployeeForm })));
+const HelpDialog = lazy(() => load.help().then((m) => ({ default: m.HelpDialog })));
+const ChangelogDialog = lazy(() => load.news().then((m) => ({ default: m.ChangelogDialog })));
+const MobileApp = lazy(() => load.mobile().then((m) => ({ default: m.MobileApp })));
+
+/** Precarga en segundo plano las secciones de la vista que se está usando. */
+function usePrefetch(small: boolean) {
+  useEffect(() => {
+    const run = () => {
+      const list = small ? [load.mobile, load.news] : [load.calendar, load.ops, load.backup, load.settings, load.form, load.help, load.news];
+      for (const f of list) f().catch(() => { /* sin conexión: se intentará al abrirla */ });
+    };
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (idle) idle(run); else setTimeout(run, 1500);
+  }, [small]);
+}
+
+const Loading = () => <div className="splash">Cargando…</div>;
 import { useIdleLogout, useIsSmallScreen } from './mobile/mobileUtils';
 
 type Tab = 'calendar' | 'ops' | 'backup' | 'settings';
@@ -74,6 +109,8 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   const [help, setHelp] = useState(false);
   const [news, setNews] = useState(false);
   useUpdateNotice(() => setNews(true));
+  useEffect(() => installErrorLogging(store), [store]);
+  const onScreenError = useCallback((e: unknown) => reportError(store, e, 'pantalla'), [store]);
   const [focus, setFocus] = useState<{ employeeId: string; date: string; n: number } | null>(null);
   const [opsSub, setOpsSub] = useState<{ sub: Sub; n: number } | null>(null);
   const goto = useCallback((employeeId: string, date: string) => { setFocus({ employeeId, date, n: Date.now() }); setTab('calendar'); }, []);
@@ -165,6 +202,7 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   // Móvil: vista propia (consulta + edición de un día) y sesión que caduca a las 8 h sin uso
   const small = useIsSmallScreen();
   const [forceDesktop, setForceDesktop] = useState(() => { try { return localStorage.getItem('ca-force-desktop') === '1'; } catch { return false; } });
+  usePrefetch(small && !forceDesktop);
   const setDesktop = (v: boolean) => { setForceDesktop(v); try { localStorage.setItem('ca-force-desktop', v ? '1' : '0'); } catch { /* */ } };
   useIdleLogout(small, onLogout);
 
@@ -179,8 +217,12 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
     if (data.loading) return <div className="splash">Cargando datos…</div>;
     return (
       <>
-        <MobileApp data={effective} user={user} onLogout={onLogout} onDesktop={() => setDesktop(true)} statusText={statusText} onNews={() => setNews(true)} />
-        {news && <ChangelogDialog onClose={() => setNews(false)} />}
+        <ErrorBoundary onError={onScreenError}>
+        <Suspense fallback={<Loading />}>
+          <MobileApp data={effective} user={user} onLogout={onLogout} onDesktop={() => setDesktop(true)} statusText={statusText} onNews={() => setNews(true)} />
+          {news && <ChangelogDialog onClose={() => setNews(false)} />}
+        </Suspense>
+        </ErrorBoundary>
       </>
     );
   }
@@ -262,6 +304,8 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
       {!data.loading && <TodayStrip data={data} onOpen={() => openOps('agenda')} />}
 
       <main>
+        <ErrorBoundary key={tab} onError={onScreenError}>
+        <Suspense fallback={<Loading />}>
         {data.loading ? <div className="splash">Cargando datos…</div> : (
           <>
             {tab === 'calendar' && (
@@ -279,13 +323,17 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
             {tab === 'settings' && <SettingsView store={store} data={effective} user={user} editing={editing} setEditing={setEditing} />}
           </>
         )}
+        </Suspense>
+        </ErrorBoundary>
       </main>
 
+      <Suspense fallback={null}>
       {help && <HelpDialog onClose={() => setHelp(false)} />}
       {news && <ChangelogDialog onClose={() => setNews(false)} />}
       {editing && tab !== 'settings' && admin.active && (
         <EmployeeForm initial={editing} isNew={false} others={data.employees} onClose={() => setEditing(null)} onSave={saveEditing} />
       )}
+      </Suspense>
     </div>
   );
 }

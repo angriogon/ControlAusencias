@@ -25,6 +25,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Pruebas de pantalla (Playwright, modo local con datos ficticios)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e
       - name: Comprobar configuración de Supabase
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}

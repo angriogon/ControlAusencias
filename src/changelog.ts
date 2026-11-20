@@ -19,6 +19,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '1.10.0',
+    date: '2026-11-20',
+    title: 'Más rápida y más segura',
+    changes: [
+      'Arranca antes: cada sección se descarga al abrirla (y las demás, en segundo plano).',
+      'Si una pantalla falla, sale un aviso con «Recargar» en vez de quedarse en blanco.',
+      'Los fallos quedan anotados para el administrador en Ajustes → Errores.',
+      'Tras publicar una versión nueva, la app se recarga sola si lo necesita.',
+      'Pruebas automáticas de las pantallas antes de cada publicación.',
+    ],
+  },
+  {
     version: '1.9.0',
     date: '2026-11-20',
     title: 'Pantallas más limpias',

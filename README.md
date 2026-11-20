@@ -87,6 +87,7 @@ El workflow `.github/workflows/deploy.yml` compila y publica en cada push a `mai
 npm install
 npm run dev        # http://localhost:5173
 npm test           # pruebas
+npm run e2e        # pruebas de pantalla (Playwright, modo local con datos ficticios)
 npm run build      # compila en dist/
 XLSX_PATH=/ruta/Control_Ausencias.xlsm npm test   # prueba el importador con el Excel real
 ```
@@ -101,7 +102,7 @@ src/
   lib/         fechas, claves, importar/exportar Excel
   components/  Grid (calendario), CodePicker (paleta), ui (modales, avisos)
   views/       Calendario, Operativa, Historial y copias (Historial, Copias, Excel), Ajustes
-supabase/migrations/001…008       tablas, auditoría por triggers, RPC de deshacer/copias, RLS, realtime
+supabase/migrations/001…010       tablas, auditoría por triggers, RPC de deshacer/copias, RLS, realtime
 ```
 
 La interfaz solo habla con `DataStore`; cambiar de backend (p. ej. a SharePoint/Graph) es escribir otro adaptador.
