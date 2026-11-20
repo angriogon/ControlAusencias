@@ -43,6 +43,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <h3>🔒 Protecciones</h3>
           <ul>
             <li>FN, FL y F no se sobrescriben en cambios de varias celdas.</li>
+            <li>La sesión se cierra sola tras <b>8 h sin uso</b> (móvil y PC), salvo en el PC que sincroniza el Excel.</li>
             <li>Cambios a más de 5 personas, importar, restaurar copias y editar fichas o siglas requieren el <b>modo administrador</b>.</li>
             <li>En modo administrador, clic en las <b>siglas</b> de una persona para editarlas ahí mismo.</li>
           </ul>
@@ -51,7 +52,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <h3>📱 En el móvil</h3>
           <ul>
             <li>Se abre una vista propia: <b>Hoy</b> (quién falta) y <b>Personas</b> (buscar, llamar, ver su mes).</li>
-            <li>Tocando un día se cambia su clave y su nota. La sesión se cierra tras 8 h sin uso.</li>
+            <li>Tocando un día se cambia su clave y su nota.</li>
             <li>Instalar: Android → Chrome → «Instalar aplicación»; iPhone → Safari → Compartir → «Añadir a pantalla de inicio».</li>
           </ul>
         </section>

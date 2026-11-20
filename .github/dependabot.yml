@@ -1,0 +1,15 @@
+# Propone cada semana actualizaciones de librerías (agrupadas en un solo PR para no hacer ruido)
+# y avisa de fallos de seguridad. Las PR pasan las pruebas antes de poder fusionarse.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday, time: "07:00", timezone: Europe/Madrid }
+    open-pull-requests-limit: 3
+    groups:
+      dependencias:
+        patterns: ["*"]
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

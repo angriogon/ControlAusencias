@@ -19,6 +19,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '1.11.0',
+    date: '2026-11-20',
+    title: 'Seguridad y orden',
+    changes: [
+      'Las cuentas nuevas empiezan en «solo consulta»: el administrador les da permiso de edición en Ajustes → Usuarios.',
+      'El navegador solo ejecuta código de la propia app y solo se conecta a nuestro servidor.',
+      'Recordatorio semanal al administrador para guardar una copia en Excel fuera de la app.',
+      'La sesión se cierra sola tras 8 h sin uso también en el PC (salvo el que sincroniza el Excel).',
+      'Calendario: «Team leader» y «Agrupar» pasan al botón «⋯ Más»; la cabecera cabe en una fila también a 1280 px.',
+    ],
+  },
+  {
     version: '1.10.0',
     date: '2026-11-20',
     title: 'Más rápida y más segura',
