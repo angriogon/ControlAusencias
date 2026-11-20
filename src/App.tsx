@@ -16,23 +16,28 @@ import { AdminProvider, useAdmin, hhmm } from './components/admin';
 import { initials } from './lib/colors';
 import { UiProvider, useUi } from './components/ui';
 import { CalendarView } from './views/CalendarView';
-import { HistoryView } from './views/HistoryView';
-import { DataView } from './views/DataView';
-import { SummaryView } from './views/SummaryView';
+import { BackupView, type BackupSub } from './views/BackupView';
 import { SettingsView, EmployeeForm } from './views/SettingsView';
 import { Login } from './views/Login';
 import { MobileApp } from './mobile/MobileApp';
 import { useIdleLogout, useIsSmallScreen } from './mobile/mobileUtils';
 
-type Tab = 'calendar' | 'ops' | 'summary' | 'history' | 'data' | 'settings';
+type Tab = 'calendar' | 'ops' | 'backup' | 'settings';
 const TABS: [Tab, string][] = [
   ['calendar', '📅 Calendario'],
   ['ops', '🧭 Operativa'],
-  ['summary', '📊 Resumen'],
-  ['history', '🕘 Historial'],
-  ['data', '💾 Copias y Excel'],
+  ['backup', '🕘 Historial y copias'],
   ['settings', '⚙️ Ajustes'],
 ];
+
+/** Pestaña guardada (también los nombres antiguos, de antes de juntar secciones). */
+function storedTab(): Tab {
+  let v = '';
+  try { v = localStorage.getItem('ca-tab') ?? ''; } catch { /* */ }
+  if (v === 'history' || v === 'data') return 'backup';
+  if (v === 'summary') return 'ops';
+  return TABS.some(([k]) => k === v) ? (v as Tab) : 'calendar';
+}
 
 export default function App() {
   const store = useMemo(() => createStore(), []);
@@ -56,9 +61,14 @@ function AuthGate({ store }: { store: DataStore }) {
   );
 }
 
+const ROLE: Record<AppUser['role'], string> = { admin: 'administrador', editor: 'editor', lector: 'solo consulta' };
+
 function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLogout: () => void }) {
   const { toast, confirm } = useUi();
-  const [tab, setTab] = useState<Tab>(() => (localStorage.getItem('ca-tab') as Tab) || 'calendar');
+  const [tab, setTab] = useState<Tab>(storedTab);
+  const [menu, setMenu] = useState(false);
+  const [backupSub, setBackupSub] = useState<{ sub: BackupSub; n: number } | null>(null);
+  const openBackup = useCallback((sub: BackupSub) => { setBackupSub({ sub, n: Date.now() }); setTab('backup'); }, []);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [online, setOnline] = useState<PresenceUser[]>([]);
   const [help, setHelp] = useState(false);
@@ -188,31 +198,45 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
         </nav>
         <div className="topbar-right">
           {sync.state !== 'off' && sync.state !== 'unsupported' && (
-            <button className={`sync-pill ${sync.state} ${sync.stale != null ? 'stale' : ''}`} onClick={() => setTab('data')}
+            <button className={`sync-pill ${sync.state} ${sync.stale != null ? 'stale' : ''}`} onClick={() => openBackup('excel')}
               title={sync.stale != null
                 ? `El Excel no ha cambiado en este PC desde hace ${Math.round(sync.stale / 60 * 10) / 10} h: revisa que OneDrive esté sincronizando`
                 : sync.state === 'watching' ? `Sincronizado con «${sync.fileName}»${sync.lastCheck ? ` · comprobado ${new Date(sync.lastCheck).toLocaleTimeString('es-ES')}` : ''}` : 'Sincronización con el Excel en pausa'}>
               {sync.stale != null ? '⚠ Excel' : '🔄 Excel'}
             </button>
           )}
-          <button className="help-btn" onClick={() => setHelp(true)} title="Guía rápida" aria-label="Ayuda">?</button>
-          <button className="undo-btn" onClick={undo} disabled={!data.undoSize} title="Deshacer mi último cambio (Ctrl+Z)">↶ Deshacer</button>
-          <span className={`status ${data.status}`} title="Los cambios se guardan solos al momento">{statusText}</span>
           {others.length > 0 && (
             <span className="presence" title={`También conectados ahora:\n${others.map((u) => u.name).join('\n')}`}>
               {others.slice(0, 5).map((u) => <span key={u.key} className="avatar" style={{ background: u.color }}>{initials(u.name)}</span>)}
               {others.length > 5 && <span className="avatar more">+{others.length - 5}</span>}
             </span>
           )}
+          <span className={`status ${data.status}`} title={`${statusText} · los cambios se guardan solos al momento`}>
+            {data.status === 'saved' ? '✓' : statusText}
+          </span>
+          <button className="undo-btn" onClick={undo} disabled={!data.undoSize} title="Deshacer mi último cambio (Ctrl+Z)" aria-label="Deshacer">↶</button>
+          <button className="help-btn" onClick={() => setHelp(true)} title="Guía rápida" aria-label="Ayuda">?</button>
           {admin.active ? (
             <button className="admin-btn on" onClick={admin.lock} title="Pulsa para salir del modo administrador">
-              🔓 Admin hasta {hhmm(admin.status.until!)}
+              🔓 Admin {hhmm(admin.status.until!)}
             </button>
           ) : (
             !readOnly && <button className="admin-btn" onClick={() => admin.requestAdmin()} title="Activar el modo administrador">🔒 Admin</button>
           )}
-          <span className="user" title={`${user.email}\nRol: ${user.role}`}>{user.name}</span>
-          <button className="link" onClick={onLogout}>Salir</button>
+          <div className="user-menu">
+            <button className="user-btn" onClick={() => setMenu((v) => !v)} aria-expanded={menu} title={`${user.email}\nRol: ${user.role}`}>{user.name} ▾</button>
+            {menu && (
+              <>
+                <div className="menu-backdrop" onClick={() => setMenu(false)} />
+                <div className="menu-pop" role="menu" onClick={() => setMenu(false)}>
+                  <div className="menu-who"><b>{user.name}</b><span>{user.email || 'Sin correo'} · {ROLE[user.role]}</span></div>
+                  <button role="menuitem" onClick={() => setNews(true)}>🆕 Novedades <span className="muted">v{APP_VERSION}</span></button>
+                  <button role="menuitem" onClick={() => setHelp(true)}>❓ Guía rápida</button>
+                  <button role="menuitem" className="danger-item" onClick={onLogout}>↪ Cerrar sesión</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -250,10 +274,8 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
                 focus={focus}
               />
             )}
-            {tab === 'ops' && <OpsView store={store} data={effective} user={user} onEditEmployee={async (e) => { if (await admin.requestAdmin('Editar fichas de personas requiere el modo administrador.')) setEditing(e); }} onGoto={goto} initialSub={opsSub} />}
-            {tab === 'summary' && <SummaryView data={effective} />}
-            {tab === 'history' && <HistoryView store={store} data={effective} />}
-            {tab === 'data' && <DataView store={store} data={effective} user={user} sync={sync} />}
+            {tab === 'ops' && <OpsView store={store} data={effective} user={user} onGoto={goto} initialSub={opsSub} />}
+            {tab === 'backup' && <BackupView store={store} data={effective} user={user} sync={sync} initialSub={backupSub} />}
             {tab === 'settings' && <SettingsView store={store} data={effective} user={user} editing={editing} setEditing={setEditing} />}
           </>
         )}

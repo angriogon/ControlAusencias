@@ -13,7 +13,8 @@ import { relativeTime } from '../lib/dates';
 import { keepSiglas } from '../lib/siglas';
 
 /** Copias de seguridad, exportar a Excel e importar el Excel antiguo. */
-export function DataView({ store, data, user, sync }: { store: DataStore; data: AppData; user: AppUser; sync: ExcelSync }) {
+/** «copias»: puntos de restauración. «excel»: sincronización, exportar e importar. */
+export function DataView({ store, data, user, sync, part }: { store: DataStore; data: AppData; user: AppUser; sync: ExcelSync; part: 'copias' | 'excel' }) {
   const { toast, confirm } = useUi();
   const [snaps, setSnaps] = useState<SnapshotInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -108,16 +109,10 @@ export function DataView({ store, data, user, sync }: { store: DataStore; data: 
   };
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Copias de seguridad y Excel</h1>
-          <p className="muted">Puntos de restauración del calendario completo. Si alguien borra algo por error, aquí se puede volver atrás.</p>
-        </div>
-      </div>
+    <div className="subpage">
+      {part === 'excel' && <SyncPanel sync={sync} user={user} />}
 
-      <SyncPanel sync={sync} user={user} />
-
+      {part === 'copias' && <>
       <section className="panel">
         <h2>Crear copia ahora</h2>
         <div className="inline-form">
@@ -155,6 +150,9 @@ export function DataView({ store, data, user, sync }: { store: DataStore; data: 
         {!isAdmin && <p className="muted small">Restaurar una copia completa requiere el modo administrador. Para deshacer cambios concretos usa el Historial.</p>}
       </section>
 
+      </>}
+
+      {part === 'excel' && <>
       <section className="panel">
         <h2>Exportar a Excel</h2>
         <div className="inline-form">
@@ -165,8 +163,7 @@ export function DataView({ store, data, user, sync }: { store: DataStore; data: 
         <p className="muted small">Mismo formato que la hoja de siempre (con colores), más una hoja de resumen y la leyenda.</p>
       </section>
 
-      {(
-        <section className="panel">
+      <section className="panel">
           <h2>Importar el Excel antiguo</h2>
           <p className="muted small">
             Carga el archivo «Control Ausencias» (.xlsx o .xlsm). Se lee en tu ordenador; verás un resumen antes de confirmar.
@@ -177,7 +174,7 @@ export function DataView({ store, data, user, sync }: { store: DataStore; data: 
             {busy === 'parse' && <p>Leyendo el archivo…</p>}
           </AdminGate>
         </section>
-      )}
+      </>}
 
       {preview && (
         <Modal title="Revisar importación" wide onClose={() => setPreview(null)} footer={<>
@@ -223,10 +220,13 @@ function SyncPanel({ sync, user }: { sync: ExcelSync; user: AppUser }) {
   return (
     <section className="panel sync-panel">
       <h2>🔄 Sincronizar con el Excel de SharePoint <span className="tag gray">solo lectura</span></h2>
-      <p className="muted small">
-        La app lee el Excel y aplica sola lo que cambie en él. <b>Nunca escribe en el Excel</b>: lo que hagas en la app se queda en la app.
-        Si una misma celda cambia después en el Excel, gana el Excel (queda en el Historial y se puede deshacer).
-      </p>
+      {(() => {
+        const text = <>La app lee el Excel y aplica sola lo que cambie en él. <b>Nunca escribe en el Excel</b>: lo que hagas en la app se queda en la app.
+          Si una misma celda cambia después en el Excel, gana el Excel (queda en el Historial y se puede deshacer).</>;
+        return s.state === 'off' || s.state === 'unsupported'
+          ? <p className="muted small">{text}</p>
+          : <details className="muted small sync-about"><summary>Cómo funciona</summary><p>{text}</p></details>;
+      })()}
       {user.role !== 'admin' ? (
         <p className="muted">Solo un usuario administrador puede activar la sincronización.</p>
       ) : s.state === 'unsupported' ? (

@@ -83,12 +83,9 @@ export function HistoryView({ store, data }: { store: DataStore; data: AppData }
   };
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Historial de cambios</h1>
-          <p className="muted">Todo lo que se modifica queda anotado: quién, cuándo y qué había antes. Desde aquí se puede deshacer.</p>
-        </div>
+    <div className="subpage">
+      <div className="page-head tools">
+        <p className="muted small">Quién cambió qué y cuándo. Desde aquí se puede deshacer.</p>
         <div className="filters">
           <select value={user} onChange={(e) => setUser(e.target.value)} aria-label="Usuario">
             <option value="">Todas las personas que editan</option>

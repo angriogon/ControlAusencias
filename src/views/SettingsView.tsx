@@ -8,6 +8,7 @@ import { Modal, useUi } from '../components/ui';
 import { matches } from '../lib/search';
 import { fillSiglas, makeSiglas, normSiglas } from '../lib/siglas';
 import { AdminGate, useAdmin } from '../components/admin';
+import { DataReview } from './OpsView';
 
 const blankEmployee = (orden: number): Employee => ({
   id: crypto.randomUUID(), nombre: '', siglas: '', telefono: '', extension: '', almacen: '', teamLeader: '', equipo: '',
@@ -20,7 +21,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
   editing: Employee | null; setEditing: (e: Employee | null) => void;
 }) {
   const { toast, confirm } = useUi();
-  const [tab, setTab] = useState<'people' | 'codes' | 'groups' | 'zones' | 'users' | 'admin'>('people');
+  const [tab, setTab] = useState<'people' | 'codes' | 'groups' | 'zones' | 'review' | 'users' | 'admin'>('people');
   const [q, setQ] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [codeEdit, setCodeEdit] = useState<Code | null>(null);
@@ -88,20 +89,15 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Ajustes</h1>
-          <p className="muted">Personas del calendario y claves disponibles.</p>
-        </div>
-        <div className="seg">
+      <nav className="subtabs" aria-label="Ajustes">
           <button className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')}>Personas ({data.employees.filter((e) => e.activo).length})</button>
           <button className={tab === 'codes' ? 'on' : ''} onClick={() => setTab('codes')}>Claves ({data.codes.length})</button>
           <button className={tab === 'groups' ? 'on' : ''} onClick={() => setTab('groups')}>Grupos</button>
           <button className={tab === 'zones' ? 'on' : ''} onClick={() => setTab('zones')}>Zonas</button>
+          <button className={tab === 'review' ? 'on' : ''} onClick={() => setTab('review')} title="Fichas con datos que faltan o no cuadran">Revisar datos</button>
           {admin.status.canManage && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Usuarios</button>}
           {admin.status.canManage && <button className={tab === 'admin' ? 'on' : ''} onClick={() => setTab('admin')}>🔒 Contraseña admin</button>}
-        </div>
-      </div>
+      </nav>
 
       {(tab === 'people' || tab === 'codes') && !admin.active && (
         <div className="panel"><AdminGate what="Añadir, editar u ocultar personas y claves">{null}</AdminGate></div>
@@ -110,6 +106,7 @@ export function SettingsView({ store, data, user, editing, setEditing }: {
       {tab === 'admin' && <AdminPasswordPanel />}
       {tab === 'zones' && <ZonesPanel data={data} />}
       {tab === 'groups' && <GroupsPanel data={data} />}
+      {tab === 'review' && <DataReview data={data} onEditEmployee={async (e) => { if (await admin.requestAdmin('Corregir fichas requiere el modo administrador.')) setEditing(e); }} />}
       {tab === 'users' && <UsersPanel store={store} user={user} />}
 
       {tab === 'people' && (

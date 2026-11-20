@@ -60,12 +60,9 @@ export function SummaryView({ data }: { data: AppData }) {
   const max = Math.max(1, ...monthly);
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Resumen del año</h1>
-          <p className="muted">Días de cada clave por persona y vacaciones pendientes. Haz clic en una columna para ordenar.</p>
-        </div>
+    <div className="subpage">
+      <div className="page-head tools">
+        <p className="muted small">Días de cada clave por persona. Clic en una columna para ordenar.</p>
         <div className="filters">
           <button className="icon-btn" onClick={() => setYear(year - 1)} aria-label="Año anterior">‹</button>
           <b className="year">{year}</b>

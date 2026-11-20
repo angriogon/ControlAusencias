@@ -14,7 +14,7 @@ import { coverageImpact, type CoverageWarning } from '../lib/ops';
 import { groupOf } from '../lib/groups';
 
 type GroupBy = 'none' | 'equipo' | 'zona' | 'teamLeader' | 'sede';
-const GROUP_LABEL: Record<GroupBy, string> = { none: 'Sin agrupar', equipo: 'Equipo', zona: 'Zona', teamLeader: 'Team leader', sede: 'Sede' };
+const GROUP_LABEL: Record<GroupBy, string> = { none: 'Sin agrupar', equipo: 'Por equipo', zona: 'Por zona', teamLeader: 'Por TL', sede: 'Por sede' };
 
 const PREFS = 'ca-calendar-prefs';
 function loadPrefs() {
@@ -132,29 +132,29 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
         </div>
 
         <div className="filters">
-          <input className="search" placeholder="🔍 Buscar persona, siglas, sede, teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select value={equipo} onChange={(e) => setEquipo(e.target.value)} aria-label="Equipo">
-            <option value="">Todos los equipos</option>
+          <input className="search cal-search" placeholder="🔍 Buscar…" title="Busca por nombre, siglas, sede, zona, equipo, teléfono o grupo" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select value={equipo} onChange={(e) => setEquipo(e.target.value)} aria-label="Equipo" className={equipo ? 'on' : ''}>
+            <option value="">Equipos</option>
             {opts('equipo').map((o) => <option key={o}>{o}</option>)}
           </select>
-          <select value={zona} onChange={(e) => setZona(e.target.value)} aria-label="Zona">
-            <option value="">Todas las zonas</option>
+          <select value={zona} onChange={(e) => setZona(e.target.value)} aria-label="Zona" className={zona ? 'on' : ''}>
+            <option value="">Zonas</option>
             {opts('zona').map((o) => <option key={o}>{o}</option>)}
           </select>
-          <select value={tl} onChange={(e) => setTl(e.target.value)} aria-label="Team leader">
-            <option value="">Todos los TL</option>
+          <select value={tl} onChange={(e) => setTl(e.target.value)} aria-label="Team leader" className={tl ? 'on' : ''}>
+            <option value="">Team leader</option>
             {opts('teamLeader').map((o) => <option key={o}>{o}</option>)}
           </select>
-          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} aria-label="Agrupar">
-            {Object.entries(GROUP_LABEL).map(([k, v]) => <option key={k} value={k}>{k === 'none' ? v : `Agrupar: ${v}`}</option>)}
+          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} aria-label="Agrupar" title="Agrupar filas" className={groupBy !== 'none' ? 'on' : ''}>
+            {Object.entries(GROUP_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          {filtersOn && <button className="link" onClick={() => { setQ(''); setEquipo(''); setZona(''); setTl(''); setGrp(''); }}>Quitar filtros</button>}
+          {filtersOn && <button className="link" onClick={() => { setQ(''); setEquipo(''); setZona(''); setTl(''); setGrp(''); }} title="Quitar filtros">✕ Filtros</button>}
         </div>
 
         <div className="actions">
-          <button className="primary" onClick={() => setPeriod(true)} disabled={!data.canEdit}>＋ Marcar periodo</button>
-          <button onClick={() => setPlanning(true)} disabled={!data.canEdit} title="Marcar PC desde un Excel de planificación">📥 Importar planificación</button>
-          <button onClick={() => setShowLegend((v) => !v)}>{showLegend ? 'Ocultar leyenda' : 'Ver leyenda'}</button>
+          <button className="primary" onClick={() => setPeriod(true)} disabled={!data.canEdit} title="Marcar un periodo (vacaciones de X a Y, festivo para un equipo…)">＋ Periodo</button>
+          <button onClick={() => setPlanning(true)} disabled={!data.canEdit} title="Importar planificación: marca PC desde un Excel de planificación">📥 Planificación</button>
+          <button className={showLegend ? 'on-toggle' : ''} aria-pressed={showLegend} onClick={() => setShowLegend((v) => !v)} title={showLegend ? 'Ocultar la leyenda de claves y grupos' : 'Ver la leyenda de claves y grupos'}>🎨 Leyenda</button>
         </div>
       </div>
 
@@ -176,9 +176,6 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
         </div>
       )} />}
 
-      <div className="hint">
-        Clic en un día para marcarlo · arrastra para varios · Supr borra clave y nota · clic en un nombre = copiar nombre y teléfono · ▦ = todo su mes · clic en un día de la cabecera = ese día para todos (Mayús+clic amplía) · ⓘ abre la ficha · Ctrl+Z deshace.
-      </div>
 
       {ordered.length === 0
         ? <div className="empty">No hay nadie que coincida con los filtros.</div>
