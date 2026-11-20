@@ -19,6 +19,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '1.9.0',
+    date: '2026-11-20',
+    title: 'Pantallas más limpias',
+    changes: [
+      '4 pestañas: Calendario · Operativa · Historial y copias · Ajustes.',
+      'Barra superior en una línea; tu nombre abre un menú con Novedades, Guía y Cerrar sesión.',
+      'Calendario: filtros y botones en una sola fila; la tabla empieza más arriba.',
+      'Operativa en 4 apartados: Centro de mando, Agenda, Cobertura (con ¿Quién puede ir?) y Cifras (saldos, carga y resumen del año).',
+      '«Revisar datos» pasa a Ajustes; la explicación de la sincronización se pliega cuando ya está activa.',
+    ],
+  },
+  {
     version: '1.8.1',
     date: '2026-11-20',
     title: 'Limpieza y retoques',

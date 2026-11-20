@@ -16,7 +16,7 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 
 - React 19 + TypeScript 7 + Vite 8 + vite-plugin-pwa. Node 22.
 - `npm ci` · `npx tsc -b` (tipos) · `npm test` (vitest) · `npm run build`.
-- Modo local (demo, sin servidor): `VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npx vite build --outDir /tmp/dist-local` y `npx vite preview --outDir /tmp/dist-local --port 4180`. Sirve para probar con Playwright (`require('playwright')`), importando el Excel real desde «Copias y Excel».
+- Modo local (demo, sin servidor): `VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npx vite build --outDir /tmp/dist-local` y `npx vite preview --outDir /tmp/dist-local --port 4180`. Sirve para probar con Playwright (`require('playwright')`), importando el Excel real desde «Historial y copias → Excel».
 - `.env.local` (no versionado): `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` del proyecto Supabase (la clave anon es pública por diseño; la seguridad está en RLS y en las funciones).
 - CI: `.github/workflows/pruebas.yml` (cada PR: tipos, pruebas, build) y `deploy.yml` (push a `main`: pruebas + build + GitHub Pages en `https://angriogon.github.io/ControlAusencias/`; usa las Variables `VITE_SUPABASE_URL/ANON_KEY` del repo).
 
@@ -29,7 +29,7 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 - `src/lib/planningImport.ts`: importar planificaciones (PC + nota «motivo · lugar · hora», conflictos, sustitutos).
 - `src/lib/ops.ts`: cobertura por zona, candidatos «¿Quién puede ir?», carga de PC, saldos, revisión de datos.
 - `src/lib/notes.ts`: tipos de nota guardados como texto con prefijo (🩺 Médico, 🚐 Taller/ITV, 📌 Tarea, 🎓 Formación, ✅ hecha), agenda, tareas pendientes y repetidas.
-- Vistas: `views/CalendarView` (+ `components/Grid`, `CodePicker`), `OpsView` (Centro de mando, Agenda, Cobertura, ¿Quién puede ir?, Carga, Saldos, Revisar datos), `SummaryView`, `HistoryView`, `DataView` (copias, Excel, sincronización), `SettingsView` (personas, claves, zonas, usuarios, contraseña admin). Móvil: `src/mobile/`.
+- Vistas (4 pestañas): `views/CalendarView` (+ `components/Grid`, `CodePicker`); `OpsView` (Centro de mando, Agenda, Cobertura [mapa · ¿Quién puede ir?], Cifras [Saldos · Carga · `SummaryView`]); `BackupView` = Historial y copias (`HistoryView`, `DataView part="copias"|"excel"`: copias, sincronización, exportar/importar); `SettingsView` (personas, claves, grupos, zonas, revisar datos, usuarios, contraseña admin). Móvil: `src/mobile/`. Las pestañas guardadas con nombres antiguos se traducen al cargar (`storedTab`, `storedSub`).
 
 ## Supabase (proyecto `wfgnlhgewyybbmgrchro`, UE)
 

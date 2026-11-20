@@ -12,17 +12,32 @@ import { Modal, useUi } from '../components/ui';
 import { NOTE_TYPES, agenda, classify, parseNote, pendingTasks, toggleDone, typeInfo, type AgendaItem, type NoteType } from '../lib/notes';
 import { fold } from '../lib/search';
 import { useAdmin } from '../components/admin';
+import { SummaryView } from './SummaryView';
 
-export type Sub = 'hoy' | 'agenda' | 'cobertura' | 'quien' | 'carga' | 'saldos' | 'revisar';
+export type Sub = 'hoy' | 'agenda' | 'cobertura' | 'cifras';
 const SUBS: [Sub, string][] = [
   ['hoy', '🎯 Centro de mando'],
   ['agenda', '📆 Agenda y tareas'],
   ['cobertura', '🗺️ Cobertura'],
-  ['quien', '🙋 ¿Quién puede ir?'],
-  ['carga', '⚖️ Carga'],
-  ['saldos', '🧮 Saldos'],
-  ['revisar', '🧹 Revisar datos'],
+  ['cifras', '🧮 Cifras'],
 ];
+type CovMode = 'mapa' | 'quien';
+type NumMode = 'saldos' | 'carga' | 'resumen';
+/** Destinos a los que se puede saltar desde otros paneles. */
+type Go = Sub | CovMode | NumMode;
+const COV: [CovMode, string][] = [['mapa', 'Mapa de zonas'], ['quien', '🙋 ¿Quién puede ir?']];
+const NUM: [NumMode, string][] = [['saldos', 'Saldos'], ['carga', 'Carga de PC'], ['resumen', 'Resumen del año']];
+
+/** Lee lo guardado en el navegador (también nombres de subpestañas antiguas). */
+function storedSub(): { sub: Sub; cov: CovMode; num: NumMode } {
+  let v = '', c = '', n = '';
+  try { v = localStorage.getItem('ca-ops-sub') ?? ''; c = localStorage.getItem('ca-ops-cov') ?? ''; n = localStorage.getItem('ca-ops-num') ?? ''; } catch { /* */ }
+  const cov: CovMode = v === 'quien' ? 'quien' : c === 'quien' ? 'quien' : 'mapa';
+  const num: NumMode = v === 'carga' || n === 'carga' ? 'carga' : n === 'resumen' ? 'resumen' : 'saldos';
+  const sub: Sub = SUBS.some(([k]) => k === v) ? (v as Sub)
+    : v === 'quien' ? 'cobertura' : v === 'carga' || v === 'saldos' ? 'cifras' : 'hoy';
+  return { sub, cov, num };
+}
 
 const LEVEL_LABEL: Record<Level, string> = { ok: 'Cubierta', justo: 'Justa', bajo: 'Sin cubrir', festivo: 'Festivo' };
 const SEEN_KEY = 'ca-ops-seen';
@@ -32,39 +47,51 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 /** Siguiente día laborable (L–V) a partir de una fecha (incluida si ya lo es). */
 const nextWorkday = (d: string) => { let x = d; while (isWeekend(x)) x = addDays(x, 1); return x; };
 
-export function OpsView({ store, data, user, onEditEmployee, onGoto, initialSub }: {
-  store: DataStore; data: AppData; user: AppUser; onEditEmployee: (e: Employee) => void;
+export function OpsView({ store, data, user, onGoto, initialSub }: {
+  store: DataStore; data: AppData; user: AppUser;
   onGoto: (employeeId: string, date: string) => void;
   /** Subpestaña pedida desde fuera (p. ej. el resumen de arriba); cambia la actual. */
   initialSub?: { sub: Sub; n: number } | null;
 }) {
-  const [sub, setSub] = useState<Sub>(() => { try { return (localStorage.getItem('ca-ops-sub') as Sub) || 'hoy'; } catch { return 'hoy'; } });
+  const [init] = useState(storedSub);
+  const [sub, setSub] = useState<Sub>(init.sub);
+  const [cov, setCov] = useState<CovMode>(init.cov);
+  const [num, setNum] = useState<NumMode>(init.num);
   useEffect(() => { if (initialSub) setSub(initialSub.sub); }, [initialSub?.n]);
   const [ask, setAsk] = useState<{ zona: string; date: string } | null>(null);
   const [report, setReport] = useState(false);
-  useEffect(() => { try { localStorage.setItem('ca-ops-sub', sub); } catch { /* */ } }, [sub]);
+  useEffect(() => {
+    try { localStorage.setItem('ca-ops-sub', sub); localStorage.setItem('ca-ops-cov', cov); localStorage.setItem('ca-ops-num', num); } catch { /* */ }
+  }, [sub, cov, num]);
 
-  const askWho = (zona: string, date: string) => { setAsk({ zona, date }); setSub('quien'); };
+  const go = (to: Go) => {
+    if (to === 'mapa' || to === 'quien') { setCov(to); setSub('cobertura'); }
+    else if (to === 'saldos' || to === 'carga' || to === 'resumen') { setNum(to); setSub('cifras'); }
+    else setSub(to);
+  };
+  const askWho = (zona: string, date: string) => { setAsk({ zona, date }); go('quien'); };
+  const seg = <T extends string>(opts: [T, string][], cur: T, set: (v: T) => void) => (
+    <div className="seg inner-seg">{opts.map(([k, l]) => <button key={k} className={cur === k ? 'on' : ''} onClick={() => set(k)}>{l}</button>)}</div>
+  );
 
   return (
     <div className="page ops">
-      <div className="page-head">
-        <div>
-          <h1>Operativa</h1>
-          <p className="muted">Cobertura por zona, disponibilidad, carga de presencial y saldos de los técnicos de campo ({data.ops.equipos.join(', ')}).</p>
-        </div>
-        <button onClick={() => setReport(true)}>📄 Informe mensual (Excel)</button>
-      </div>
-      <nav className="subtabs" aria-label="Operativa">
+      <nav className="subtabs" aria-label="Operativa" title={`Técnicos de campo: ${data.ops.equipos.join(', ')}`}>
         {SUBS.map(([k, label]) => <button key={k} className={sub === k ? 'on' : ''} onClick={() => setSub(k)}>{label}</button>)}
+        <button className="subtabs-end" onClick={() => setReport(true)}>📄 Informe mensual</button>
       </nav>
-      {sub === 'hoy' && <CommandCenter store={store} data={data} user={user} onAsk={askWho} onGo={setSub} onGoto={onGoto} />}
+      {sub === 'hoy' && <CommandCenter store={store} data={data} user={user} onAsk={askWho} onGo={go} onGoto={onGoto} />}
       {sub === 'agenda' && <Agenda data={data} onGoto={onGoto} />}
-      {sub === 'cobertura' && <CoverageMap data={data} onAsk={askWho} />}
-      {sub === 'quien' && <WhoCanGo data={data} initial={ask} />}
-      {sub === 'carga' && <Workload data={data} />}
-      {sub === 'saldos' && <Balances data={data} />}
-      {sub === 'revisar' && <DataReview data={data} onEditEmployee={onEditEmployee} />}
+      {sub === 'cobertura' && <>
+        {seg(COV, cov, setCov)}
+        {cov === 'mapa' ? <CoverageMap data={data} onAsk={askWho} /> : <WhoCanGo data={data} initial={ask} />}
+      </>}
+      {sub === 'cifras' && <>
+        {seg(NUM, num, setNum)}
+        {num === 'saldos' && <Balances data={data} />}
+        {num === 'carga' && <Workload data={data} />}
+        {num === 'resumen' && <SummaryView data={data} />}
+      </>}
       {report && <ReportDialog data={data} onClose={() => setReport(false)} />}
     </div>
   );
@@ -92,7 +119,7 @@ function Dot({ level }: { level: Level }) {
 // Centro de mando
 // =====================================================================
 function CommandCenter({ store, data, user, onAsk, onGo, onGoto }: {
-  store: DataStore; data: AppData; user: AppUser; onAsk: (zona: string, date: string) => void; onGo: (s: Sub) => void;
+  store: DataStore; data: AppData; user: AppUser; onAsk: (zona: string, date: string) => void; onGo: (s: Go) => void;
   onGoto: (employeeId: string, date: string) => void;
 }) {
   const today = todayIso();
@@ -590,7 +617,7 @@ function Balances({ data }: { data: AppData }) {
 // =====================================================================
 // Revisión de datos
 // =====================================================================
-function DataReview({ data, onEditEmployee }: { data: AppData; onEditEmployee: (e: Employee) => void }) {
+export function DataReview({ data, onEditEmployee }: { data: AppData; onEditEmployee: (e: Employee) => void }) {
   const admin = useAdmin();
   const year = new Date().getFullYear();
   useEffect(() => { data.loadYear(year); }, [year, data.loadYear]);

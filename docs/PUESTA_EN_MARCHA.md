@@ -18,7 +18,7 @@ Marca cada punto al completarlo. Los marcados con ⛔ bloquean el arranque: sin 
 ## 3. Copias de seguridad
 
 - [x] Copia automática diaria a las 3:00 activa (se guardan las 60 últimas). *Comprobado el 31/10/2026.*
-- [ ] ⛔ **Copia fuera de Supabase**: cada lunes, *Copias y Excel → Exportar a Excel* y guardar el Excel en SharePoint (carpeta: _______________). Poner un recordatorio en Outlook.
+- [ ] ⛔ **Copia fuera de Supabase**: cada lunes, *Historial y copias → Excel → Exportar a Excel* y guardar el Excel en SharePoint (carpeta: _______________). Poner un recordatorio en Outlook.
 - [ ] Probar **una restauración** completa una vez (crear copia → restaurar → comprobar) para saber hacerlo con calma.
 
 ## 4. Usuarios
@@ -31,7 +31,7 @@ Marca cada punto al completarlo. Los marcados con ⛔ bloquean el arranque: sin 
 ## 5. Datos listos
 
 - [ ] Rellenar las **siglas** de los técnicos (calendario en modo admin → clic en la celda Siglas).
-- [ ] Operativa → **Revisar datos** sin fichas incompletas relevantes.
+- [ ] Ajustes → **Revisar datos** sin fichas incompletas relevantes.
 - [ ] Ajustes → **Zonas**: zonas vecinas y mínimos revisados.
 - [ ] Revisar la clave **FS (importada, revisar)**: sustituirla por la correcta o confirmar que se usa.
 - [ ] Importación final del Excel (si hubo cambios en el Excel desde la última importación) **justo antes** del arranque.
@@ -39,7 +39,7 @@ Marca cada punto al completarlo. Los marcados con ⛔ bloquean el arranque: sin 
 ## 5 bis. Sincronización con el Excel (si se mantiene el Excel como referencia)
 
 - [ ] En SharePoint, **Sincronizar** la biblioteca del Excel con OneDrive en el PC del administrador y marcar el archivo como «Mantener siempre en este dispositivo».
-- [ ] App → Copias y Excel → **Elegir el Excel sincronizado** (Edge o Chrome) → «Empezar desde ahora» (o aplicar diferencias si las hay).
+- [ ] App → Historial y copias → Excel → **Elegir el Excel sincronizado** (Edge o Chrome) → «Empezar desde ahora» (o aplicar diferencias si las hay).
 - [ ] Dejar la app abierta en ese PC durante la jornada (si se cierra, al volver a abrirla se pondrá al día).
 - [ ] Si se usa la sincronización, el punto «Excel antiguo en solo lectura» del día de arranque **no aplica**: el Excel sigue siendo la referencia y la app lo refleja.
 
@@ -47,7 +47,7 @@ Marca cada punto al completarlo. Los marcados con ⛔ bloquean el arranque: sin 
 
 - [ ] ⛔ Poner el **Excel antiguo en solo lectura** en SharePoint y avisar: «desde hoy, solo en la app». Nunca los dos a la vez.
 - [ ] Enviar al equipo: dirección de la app, cómo instalarla (PC y móvil) y el botón **?** de la guía rápida.
-- [ ] Crear una **copia manual** con el nombre «Arranque» (Copias y Excel).
+- [ ] Crear una **copia manual** con el nombre «Arranque» (Historial y copias → Copias de seguridad).
 
 ## 7. Piloto (2–3 semanas)
 

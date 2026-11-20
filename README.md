@@ -29,17 +29,17 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
 - **🧭 Operativa** (pestaña para dispatch, sobre los técnicos de campo: equipos configurables en Ajustes → Zonas):
   - **Centro de mando**: hoy o el siguiente laborable, zona a zona: quién trabaja, quién falta y por qué, quién está en cliente; alertas (zonas sin cubrir en los próximos 10 laborables, bajas de 5 días o más, vacaciones pendientes a fin de año) y novedades de otros compañeros.
   - **Cobertura**: semáforo zonas × días (1, 2 o 4 semanas). 🟢 cubierta · 🟡 justa (en el mínimo) · 🔴 sin cubrir · ⚪ festivo (FN/FL).
-  - **¿Quién puede ir?**: zona + día → disponibles, primero de la zona, luego zonas vecinas y, si no hay nadie, del resto; libres antes que en cliente y con menos carga de PC esa semana/mes.
-  - **Carga**: días de PC por técnico (media jornada = 0,5) frente a la mediana de su zona, con TS y TF.
-  - **Saldos**: vacaciones y VP pendientes, festivos/sábados trabajados (TF+TS) frente a libres (Lf+Lh, informativo), bajas y PC.
-  - **Revisar datos**: fichas sin siglas, zona, equipo o días de vacaciones y claves «a revisar».
+  - **¿Quién puede ir?** (dentro de Cobertura): zona + día → disponibles, primero de la zona, luego zonas vecinas y, si no hay nadie, del resto; libres antes que en cliente y con menos carga de PC esa semana/mes.
+  - **Cifras → Carga**: días de PC por técnico (media jornada = 0,5) frente a la mediana de su zona, con TS y TF.
+  - **Cifras → Saldos**: vacaciones y VP pendientes, festivos/sábados trabajados (TF+TS) frente a libres (Lf+Lh, informativo), bajas y PC.
+  - **Revisar datos** (ahora en Ajustes): fichas sin siglas, zona, equipo o días de vacaciones y claves «a revisar».
   - **📄 Informe mensual (Excel)**: zonas (absentismo por tipo, PC, días sin cubrir), cobertura día a día, personas y saldos del año.
   - Reglas: «fuera» = clave de tipo ausencia; FN/FL = festivo; PC = trabajando en cliente; el resto de claves = disponible. Fines de semana no cuentan. Al marcar una ausencia que deja una zona bajo su mínimo, sale un aviso amarillo (no bloquea).
 - **Ajustes → Zonas** (modo admin): equipos que son «técnicos de campo», mínimo de técnicos por zona (por defecto 1) y zonas vecinas (la vecindad es mutua).
 - **Ajustes → Usuarios** (rol admin + modo admin): cambiar el rol de cada usuario (Administrador / Editor / Solo consulta). Siempre queda al menos un administrador.
 - **❓** arriba: guía rápida de una pantalla.
-- **🔄 Sincronizar con el Excel de SharePoint** (Copias y Excel, solo rol admin, Edge o Chrome de escritorio): un solo sentido, Excel → app; **la app nunca escribe en el Excel**. Se sincroniza la biblioteca de SharePoint con OneDrive en el PC, se elige el archivo y la app lo vigila cada 20 s mientras esté abierta. Solo aplica lo que ha cambiado en el Excel desde la última lectura (lo hecho solo en la app se conserva; si esa misma celda cambia luego en el Excel, gana el Excel). Personas o claves del Excel que no existen en la app se avisan y no se crean. Cada sincronización es un lote del Historial (se deshace de una vez). La primera vez se puede «Aplicar diferencias» o «Empezar desde ahora».
-- **Me he equivocado**: `Ctrl+Z` o botón **↶ Deshacer** arriba. Para cambios de otros o más antiguos: pestaña **Historial**.
+- **🔄 Sincronizar con el Excel de SharePoint** (Historial y copias → Excel, solo rol admin, Edge o Chrome de escritorio): un solo sentido, Excel → app; **la app nunca escribe en el Excel**. Se sincroniza la biblioteca de SharePoint con OneDrive en el PC, se elige el archivo y la app lo vigila cada 20 s mientras esté abierta. Solo aplica lo que ha cambiado en el Excel desde la última lectura (lo hecho solo en la app se conserva; si esa misma celda cambia luego en el Excel, gana el Excel). Personas o claves del Excel que no existen en la app se avisan y no se crean. Cada sincronización es un lote del Historial (se deshace de una vez). La primera vez se puede «Aplicar diferencias» o «Empezar desde ahora».
+- **Me he equivocado**: `Ctrl+Z` o botón **↶ Deshacer** arriba. Para cambios de otros o más antiguos: **Historial y copias → Historial**.
 - `Ctrl+C` / `Ctrl+V` funcionan como en Excel (también pegando desde Excel).
 - **Tipos de nota**: en la paleta, 🩺 Médico · 🚐 Taller/ITV · 📌 Tarea · 🎓 Formación + hora. Se guardan como texto («🩺 Médico 09:30 · revisión»), así que el historial y la exportación siguen igual; las notas antiguas se clasifican solas por palabras clave. La celda muestra el icono del tipo. Sugerencias con los textos más usados (primero los de esa persona). Las tareas se pueden repetir (cada semana, 2 semanas o mes, hasta una fecha; si cae en fin de semana pasa al lunes) y se deshacen de una vez. Al marcar **P** o **A** sin nota, se ofrece apuntar el motivo (opcional).
 - **Agenda y tareas** (Operativa): próximos 7/14/30 días por tipo y zona, tareas pendientes (las 📌 siguen hasta marcarlas ✓ hechas; quién y cuándo queda en el Historial), aviso de citas en días con PC y buscador en todas las notas. «Ir al día» abre la celda en el calendario. Franja azul arriba con lo de hoy y el próximo laborable. En el móvil, «Agenda del día» en Hoy y botones de tipo en la nota.
@@ -68,7 +68,7 @@ App web instalable (PWA) que sustituye al Excel «Control Ausencias presencial»
    -- roles: admin (todo), editor (marcar y editar fichas), lector (solo ver)
    ```
 6. Copia `.env.example` a `.env.local` y rellena `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (Project Settings → API). La clave *anon* es pública por diseño; la seguridad la dan las políticas RLS del SQL.
-7. Entra en la app como admin → **Copias y Excel → Importar el Excel antiguo** → elige el `.xlsm`. Verás un resumen y avisos antes de confirmar.
+7. Entra en la app como admin → **Historial y copias → Excel → Importar el Excel antiguo** → elige el `.xlsm`. Verás un resumen y avisos antes de confirmar.
 8. (Opcional, recomendado) Copia automática diaria: activa la extensión `pg_cron` y ejecuta las dos líneas del final del SQL.
 
 > Antes de abrir la app al equipo: [lista de comprobación de puesta en marcha](docs/PUESTA_EN_MARCHA.md).
@@ -100,7 +100,7 @@ src/
   data/        store.ts (interfaz común), localStore.ts, supabaseStore.ts, useAppData.ts (estado + guardado optimista)
   lib/         fechas, claves, importar/exportar Excel
   components/  Grid (calendario), CodePicker (paleta), ui (modales, avisos)
-  views/       Calendario, Resumen, Historial, Copias y Excel, Ajustes
+  views/       Calendario, Operativa, Historial y copias (Historial, Copias, Excel), Ajustes
 supabase/migrations/001…008       tablas, auditoría por triggers, RPC de deshacer/copias, RLS, realtime
 ```
 

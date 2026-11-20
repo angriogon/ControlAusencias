@@ -22,7 +22,8 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <h3>↶ Me he equivocado</h3>
           <ul>
             <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> o «↶ Deshacer» arriba deshace tu último cambio.</li>
-            <li>Cambios más antiguos o de otros: pestaña <b>Historial</b> → «Deshacer».</li>
+            <li>Cambios más antiguos o de otros: <b>Historial y copias</b> → Historial → «Deshacer».</li>
+            <li>Copias completas del calendario y todo lo del Excel (sincronizar, exportar, importar): <b>Historial y copias</b>.</li>
             <li>Todo se guarda solo al momento (arriba pone «✓ Todo guardado»).</li>
           </ul>
         </section>
@@ -32,9 +33,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
             <li><b>Centro de mando:</b> quién trabaja hoy o el siguiente laborable en cada zona, alertas (también citas en días con PC) y novedades.</li>
             <li><b>Agenda y tareas:</b> médicos, talleres, formación y tareas de los próximos días; tareas pendientes hasta marcarlas ✓ hechas; buscador en todas las notas. «Ir al día» abre la celda.</li>
             <li>La franja azul de arriba resume lo de hoy y el próximo laborable (se oculta con ✕ hasta mañana).</li>
-            <li><b>Cobertura:</b> semáforo de zonas por día. 🟢 cubierta · 🟡 justa · 🔴 sin cubrir · ⚪ festivo.</li>
-            <li><b>¿Quién puede ir?:</b> zona + día → técnicos disponibles, primero los de la zona y con menos carga.</li>
-            <li><b>Carga</b> de PC por técnico, <b>Saldos</b> (vacaciones, festivos trabajados) y <b>Revisar datos</b>.</li>
+            <li><b>Cobertura:</b> semáforo de zonas por día (🟢 cubierta · 🟡 justa · 🔴 sin cubrir · ⚪ festivo) y <b>¿Quién puede ir?</b>: zona + día → técnicos disponibles, primero los de la zona y con menos carga.</li>
+            <li><b>Cifras:</b> saldos (vacaciones, festivos trabajados), carga de PC por técnico y resumen del año.</li>
+            <li>Fichas con datos que faltan: <b>Ajustes → Revisar datos</b>.</li>
             <li>Al marcar una ausencia que deja una zona sin el mínimo de técnicos, sale un aviso amarillo (no bloquea).</li>
           </ul>
         </section>
