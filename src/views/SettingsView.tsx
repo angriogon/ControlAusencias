@@ -405,7 +405,7 @@ function GroupsPanel({ data }: { data: AppData }) {
           })}
         </tbody>
       </table>
-      <div className="modal-actions" style={{ position: 'sticky', bottom: 0, background: '#fff', paddingTop: 8 }}>
+      <div className="modal-actions sticky-actions">
         {dirty && <button onClick={() => setCfg(data.groups)}>Descartar</button>}
         <button className="primary" disabled={!dirty || busy || !data.canEdit} onClick={save}>{busy ? 'Guardando…' : `${admin.active ? '' : '🔒 '}Guardar grupos`}</button>
       </div>

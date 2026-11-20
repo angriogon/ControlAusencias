@@ -39,6 +39,8 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
   const [period, setPeriod] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [card, setCard] = useState<Employee | null>(null);
+  /** Filtro de la leyenda de grupos: id del grupo, '-' = sin grupo, '' = todos. */
+  const [grp, setGrp] = useState('');
 
   useEffect(() => {
     try { localStorage.setItem(PREFS, JSON.stringify({ equipo, zona, tl, groupBy, showLegend })); } catch { /* sin almacenamiento */ }
@@ -51,7 +53,7 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
     if (!focus) return;
     const f = parseIso(focus.date);
     setYm({ y: f.y, m: f.m0 });
-    setQ(''); setEquipo(''); setZona(''); setTl('');
+    setQ(''); setEquipo(''); setZona(''); setTl(''); setGrp('');
   }, [focus?.n]);
 
   const days = useMemo(() => monthDays(ym.y, ym.m), [ym.y, ym.m]);
@@ -68,8 +70,10 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
 
   const filtered = useMemo(() => {
     return active.filter((e) => (!equipo || e.equipo === equipo) && (!zona || e.zona === zona) && (!tl || e.teamLeader === tl)
+      && (!grp || (grp === '-' ? !groupFor(e) : groupFor(e)?.id === grp))
       && matches(q, e.nombre, e.siglas, e.sede, e.zona, e.equipo, e.almacen, e.telefono, e.extension, e.teamLeader, groupFor(e)?.nombre));
-  }, [active, q, equipo, zona, tl, groupFor]);
+  }, [active, q, equipo, zona, tl, grp, groupFor]);
+  const noGroup = useMemo(() => active.filter((e) => !groupFor(e)).length, [active, groupFor]);
 
   const { rows, ordered } = useMemo(() => {
     if (groupBy === 'none') {
@@ -105,7 +109,7 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
     return { y: y + Math.floor(n / 12), m: ((n % 12) + 12) % 12 };
   });
 
-  const filtersOn = !!(q || equipo || zona || tl);
+  const filtersOn = !!(q || equipo || zona || tl || grp);
   const usedCodes = useMemo(() => {
     const s = new Set<string>();
     for (const e of ordered) for (const d of days) { const c = data.entries.get(entryKey(e.id, d))?.code; if (c) s.add(c); }
@@ -144,7 +148,7 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
           <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} aria-label="Agrupar">
             {Object.entries(GROUP_LABEL).map(([k, v]) => <option key={k} value={k}>{k === 'none' ? v : `Agrupar: ${v}`}</option>)}
           </select>
-          {filtersOn && <button className="link" onClick={() => { setQ(''); setEquipo(''); setZona(''); setTl(''); }}>Quitar filtros</button>}
+          {filtersOn && <button className="link" onClick={() => { setQ(''); setEquipo(''); setZona(''); setTl(''); setGrp(''); }}>Quitar filtros</button>}
         </div>
 
         <div className="actions">
@@ -159,10 +163,17 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
       {usedGroups.length > 0 && (
         <div className="grp-legend" aria-label="Grupos de personal">
           {usedGroups.map((g) => (
-            <button key={g.id} className="link grp-chip" onClick={() => setQ(q === g.nombre ? '' : g.nombre)} title={`Ver solo ${g.nombre} (clic otra vez para quitar)`}>
+            <button key={g.id} className={`link grp-chip ${grp === g.id ? 'on' : ''}`} aria-pressed={grp === g.id}
+              onClick={() => setGrp(grp === g.id ? '' : g.id)} title={`Ver solo ${g.nombre} (clic otra vez para quitar)`}>
               <span className="grp-swatch" style={{ background: g.color }} />{g.nombre}
             </button>
           ))}
+          {noGroup > 0 && (
+            <button className={`link grp-chip ${grp === '-' ? 'on' : ''}`} aria-pressed={grp === '-'}
+              onClick={() => setGrp(grp === '-' ? '' : '-')} title="Ver solo a quien no tiene grupo (clic otra vez para quitar)">
+              <span className="grp-swatch grp-none" />Sin grupo ({noGroup})
+            </button>
+          )}
         </div>
       )}
 
