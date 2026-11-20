@@ -37,5 +37,5 @@ export default defineConfig({
     }),
   ],
   build: { chunkSizeWarningLimit: 1200 },
-  test: { environment: 'node' },
+  test: { environment: 'node', exclude: ['e2e/**', 'node_modules/**', 'dist*/**'] },
 });

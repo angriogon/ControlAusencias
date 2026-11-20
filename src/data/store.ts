@@ -1,6 +1,5 @@
 import type {
-  AdminStatus, AppUser, UserProfile, CellChange, Note, NoteChange, PresenceUser, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo,
-} from '../types';
+  AdminStatus, AppUser, UserProfile, CellChange, Note, NoteChange, PresenceUser, ChangeFilter, ChangeLog, Code, Dataset, Employee, LiveEvent, SnapshotInfo, AppErrorReport, AppErrorRow } from '../types';
 
 /**
  * Contrato común de almacenamiento. La interfaz no sabe si los datos viven en
@@ -62,6 +61,11 @@ export interface DataStore {
   onPresence?(cb: (users: PresenceUser[]) => void): () => void;
   /** Comunica en qué celda estoy (null = en ninguna). */
   setCursor?(cell: { employeeId: string; date: string } | null): void;
+
+  // Registro de errores de la app (no debe fallar nunca: si no se puede guardar, se ignora)
+  logError(e: AppErrorReport): Promise<void>;
+  /** Solo rol administrador. */
+  listErrors(limit: number): Promise<AppErrorRow[]>;
 
   // Modo administrador (contraseña compartida)
   adminStatus(): Promise<AdminStatus>;

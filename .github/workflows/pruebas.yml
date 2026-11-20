@@ -31,3 +31,7 @@ jobs:
       - name: Compilación
         # Sin claves de Supabase: compila en modo local, solo para comprobar que el código construye
         run: npx vite build
+      - name: Pruebas de pantalla (Playwright, modo local con datos ficticios)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run e2e

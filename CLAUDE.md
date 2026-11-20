@@ -15,7 +15,7 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 ## Stack y comandos
 
 - React 19 + TypeScript 7 + Vite 8 + vite-plugin-pwa. Node 22.
-- `npm ci` · `npx tsc -b` (tipos) · `npm test` (vitest) · `npm run build`.
+- `npm ci` · `npx tsc -b` (tipos) · `npm test` (vitest) · `npm run e2e` (Playwright: compila en modo local y prueba las pantallas en escritorio y móvil; también en CI antes de publicar) · `npm run build`. Antes de fusionar: tipos + `npm test` + `npm run e2e`.
 - Modo local (demo, sin servidor): `VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npx vite build --outDir /tmp/dist-local` y `npx vite preview --outDir /tmp/dist-local --port 4180`. Sirve para probar con Playwright (`require('playwright')`), importando el Excel real desde «Historial y copias → Excel».
 - `.env.local` (no versionado): `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` del proyecto Supabase (la clave anon es pública por diseño; la seguridad está en RLS y en las funciones).
 - CI: `.github/workflows/pruebas.yml` (cada PR: tipos, pruebas, build) y `deploy.yml` (push a `main`: pruebas + build + GitHub Pages en `https://angriogon.github.io/ControlAusencias/`; usa las Variables `VITE_SUPABASE_URL/ANON_KEY` del repo).
@@ -29,11 +29,13 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 - `src/lib/planningImport.ts`: importar planificaciones (PC + nota «motivo · lugar · hora», conflictos, sustitutos).
 - `src/lib/ops.ts`: cobertura por zona, candidatos «¿Quién puede ir?», carga de PC, saldos, revisión de datos.
 - `src/lib/notes.ts`: tipos de nota guardados como texto con prefijo (🩺 Médico, 🚐 Taller/ITV, 📌 Tarea, 🎓 Formación, ✅ hecha), agenda, tareas pendientes y repetidas.
-- Vistas (4 pestañas): `views/CalendarView` (+ `components/Grid`, `CodePicker`); `OpsView` (Centro de mando, Agenda, Cobertura [mapa · ¿Quién puede ir?], Cifras [Saldos · Carga · `SummaryView`]); `BackupView` = Historial y copias (`HistoryView`, `DataView part="copias"|"excel"`: copias, sincronización, exportar/importar); `SettingsView` (personas, claves, grupos, zonas, revisar datos, usuarios, contraseña admin). Móvil: `src/mobile/`. Las pestañas guardadas con nombres antiguos se traducen al cargar (`storedTab`, `storedSub`).
+- Carga diferida: `App.tsx` importa cada sección con `lazy()` y las precarga en segundo plano (`usePrefetch`); el lector del Excel (`excelImport`) se descarga solo al sincronizar o importar.
+- Errores: `lib/errorLog.ts` (no capturados → `store.logError`, deduplicados; recarga una vez si tras publicar falta un trozo de la app) y `components/ErrorBoundary` por pestaña. Se ven en Ajustes → Errores (RPC `log_error`/`list_errors`).
+- Vistas (4 pestañas): `views/CalendarView` (+ `components/Grid`, `CodePicker`); `OpsView` + `views/ops/*` (Centro de mando, Agenda, Cobertura [mapa · ¿Quién puede ir?], Cifras [Saldos · Carga · `SummaryView`]); `BackupView` = Historial y copias (`HistoryView`, `DataView part="copias"|"excel"`: copias, sincronización, exportar/importar); `SettingsView` + `views/settings/*` (personas, claves, grupos, zonas, revisar datos, usuarios, contraseña admin). Móvil: `src/mobile/`. Las pestañas guardadas con nombres antiguos se traducen al cargar (`storedTab`, `storedSub`).
 
 ## Supabase (proyecto `wfgnlhgewyybbmgrchro`, UE)
 
-- Migraciones en `supabase/migrations/001…008` (**ya aplicadas** en producción). Las nuevas se aplican con la herramienta MCP de Supabase (`apply_migration`) o en el SQL Editor, y se guardan también en el repo con el número siguiente.
+- Migraciones en `supabase/migrations/` (001…010 **aplicadas** en producción). Se guardan en el repo con el número siguiente. Desde la sesión del servidor las escrituras con el conector de Supabase se cuelgan: el usuario las pega en el SQL Editor y luego se comprueban con consultas de solo lectura.
 - Escrituras **solo por funciones** `security definer` (tablas sin DML directo para anon/authenticated): `apply_entries`, `apply_notes`, `save_employee`, `save_code`, `replace_all`, `revert_changes/revert_batch`, `save_setting`, `set_user_role`, `sync_excel`… Cada escritura queda en `change_log` por triggers (lote = `batch_id`/`batch_label`).
 - Modo administrador: contraseña bcrypt en `admin_config`, 4 h en `profiles.admin_until`. Cambios a más de 5 personas exigen modo admin (en servidor). Roles: admin, editor, lector.
 - `pg_cron`: copia diaria a las 3:00 (`copia-diaria-ausencias`), se guardan las 60 últimas automáticas.

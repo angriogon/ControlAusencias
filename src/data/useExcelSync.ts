@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DataStore } from './store';
 import type { AppData } from './useAppData';
 import { idbDel, idbGet, idbSet } from './idb';
-import { parseWorkbook } from '../lib/excelImport';
 import { deserializeSnapshot, fullDiff, planSync, rowsToChanges, serializeSnapshot, snapshotOf, staleMinutes, type DiffRow, type Snapshot, type SyncPlan } from '../lib/excelSync';
 
 /**
@@ -86,6 +85,7 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
 
   const read = async (h: Handle) => {
     const file = await h.getFile();
+    const { parseWorkbook } = await import('../lib/excelImport'); // solo se descarga si hay sincronización
     const snap = snapshotOf(parseWorkbook(await file.arrayBuffer()).dataset);
     return { file, snap };
   };
@@ -241,6 +241,7 @@ export function useExcelSync(store: DataStore, data: AppData, enabled: boolean, 
     setChecking(true);
     try {
       const file = await withTimeout(c.handle.getFile(), 30000, 'El archivo no responde. Comprueba que OneDrive está sincronizado.');
+      const { parseWorkbook } = await import('../lib/excelImport');
       const res = parseWorkbook(await file.arrayBuffer());
       const snap = snapshotOf(res.dataset);
       const from = res.stats.from ?? '2000-01-01';

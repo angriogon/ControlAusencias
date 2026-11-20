@@ -9,3 +9,6 @@ dev-dist
 *.xlsm
 *.xls
 *.tsbuildinfo
+dist-e2e
+test-results
+playwright-report

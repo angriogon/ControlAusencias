@@ -207,6 +207,20 @@ export const PROTECTED_CODES = ['FN', 'FL', 'F'];
 /** A partir de cuántas personas un cambio se considera masivo (requiere modo admin). */
 export const MASS_PEOPLE_LIMIT = 5;
 
+/** Error de la app que se guarda para poder revisarlo (Ajustes → Errores). */
+export interface AppErrorReport {
+  message: string;
+  stack?: string;
+  version: string;
+  url: string;
+  userAgent: string;
+}
+export interface AppErrorRow extends AppErrorReport {
+  id: number;
+  ts: string;
+  userName: string;
+}
+
 export class AdminRequiredError extends Error {
   constructor(message: string) {
     super(message);
