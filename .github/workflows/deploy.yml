@@ -24,6 +24,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Seguridad de dependencias (las que llegan al navegador)
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Revisión de código (oxlint)
+        run: npm run lint
       - run: npm test
       - name: Pruebas de pantalla (Playwright, modo local con datos ficticios)
         run: |

@@ -18,6 +18,7 @@ import type { BackupSub } from './views/BackupView';
 import { Login } from './views/Login';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installErrorLogging, reportError } from './lib/errorLog';
+import { EXPORT_EVERY_DAYS, exportDays } from './lib/exportReminder';
 
 /*
  * Cada sección se descarga al abrirla (la app arranca antes) y, ya abierta la app,
@@ -55,7 +56,7 @@ function usePrefetch(small: boolean) {
 }
 
 const Loading = () => <div className="splash">Cargando…</div>;
-import { useIdleLogout, useIsSmallScreen } from './mobile/mobileUtils';
+import { touchActivity, useIdleLogout, useIsSmallScreen } from './mobile/mobileUtils';
 
 type Tab = 'calendar' | 'ops' | 'backup' | 'settings';
 const TABS: [Tab, string][] = [
@@ -152,6 +153,18 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   }), [data, readOnly, toast, withCoverageCheck]);
 
   useEffect(() => { try { localStorage.setItem('ca-tab', tab); } catch { /* */ } }, [tab]);
+
+  // Recordatorio al administrador: copia fuera de la app (exportar a Excel) cada semana. Una vez por sesión.
+  useEffect(() => {
+    if (data.loading || user.role !== 'admin' || store.mode === 'local') return;
+    const days = exportDays(data.lastExport);
+    if (days <= EXPORT_EVERY_DAYS) return;
+    try { if (sessionStorage.getItem('ca-aviso-export')) return; sessionStorage.setItem('ca-aviso-export', '1'); } catch { /* */ }
+    toast(days === Infinity
+      ? '💾 Aún no hay ninguna copia fuera de la app. Exporta el calendario a Excel y guárdalo en SharePoint.'
+      : `💾 La última copia fuera de la app es de hace ${Math.floor(days)} días. Exporta a Excel y guárdalo en SharePoint.`,
+    'warn', { label: 'Exportar ahora', run: () => openBackup('excel') });
+  }, [data.loading, data.lastExport, user.role, store.mode, toast, openBackup]);
   useEffect(() => store.onPresence?.(setOnline), [store]);
 
   const undo = useCallback(async () => {
@@ -204,7 +217,10 @@ function Main({ store, user, onLogout }: { store: DataStore; user: AppUser; onLo
   const [forceDesktop, setForceDesktop] = useState(() => { try { return localStorage.getItem('ca-force-desktop') === '1'; } catch { return false; } });
   usePrefetch(small && !forceDesktop);
   const setDesktop = (v: boolean) => { setForceDesktop(v); try { localStorage.setItem('ca-force-desktop', v ? '1' : '0'); } catch { /* */ } };
-  useIdleLogout(small, onLogout);
+  // Sesión que se cierra sola tras 8 h sin uso (móvil y PC). Excepción: el navegador que vigila
+  // el Excel, que debe seguir conectado aunque nadie lo toque para no parar la sincronización.
+  useIdleLogout(small || sync.state === 'off' || sync.state === 'unsupported', onLogout);
+  useEffect(() => { if (sync.lastCheck) touchActivity(); }, [sync.lastCheck]);
 
   const statusText = {
     saved: '✓ Todo guardado',

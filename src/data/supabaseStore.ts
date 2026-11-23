@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient, type RealtimeChannel } from '@supabase/supabase-js';
 import type { DataStore } from './store';
+import type { Database, Json } from './database.types';
 import { colorForName } from '../lib/colors';
 import {
   AdminRequiredError, ConflictError,
@@ -10,6 +11,14 @@ import {
 
 // ---------- conversión filas SQL (snake_case) <-> app (camelCase) ----------
 type Row = Record<string, unknown>;
+type TableName = keyof Database['public']['Tables'];
+/** Objeto de la app → JSON para una función de Supabase (los jsonb no tienen forma fija en el esquema). */
+const asJson = (x: unknown) => x as Json;
+/**
+ * El generador de tipos declara todos los argumentos de las funciones como obligatorios,
+ * pero en SQL pueden ser NULL (p. ej. contraseña actual al crearla por primera vez).
+ */
+const sqlNull = <T,>(v: T | null | undefined) => v as T;
 
 const empFromRow = (r: Row): Employee => ({
   id: r.id as string,
@@ -110,12 +119,12 @@ function fail(error: { message: string } | null) {
  */
 export class SupabaseStore implements DataStore {
   readonly mode = 'supabase' as const;
-  private sb: SupabaseClient;
+  private sb: SupabaseClient<Database>;
   private user: AppUser | null = null;
   private presence: RealtimeChannel | null = null;
 
   constructor(url: string, key: string) {
-    this.sb = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
+    this.sb = createClient<Database>(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
   }
 
   // ---------- sesión ----------
@@ -154,7 +163,8 @@ export class SupabaseStore implements DataStore {
 
   // ---------- lectura ----------
   /** Supabase devuelve como mucho 1000 filas por consulta: se pagina. */
-  private async all(table: string, build: (q: any) => any, select = '*'): Promise<Row[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- el constructor de consultas cambia de tipo con cada filtro
+  private async all(table: TableName, build: (q: any) => any, select = '*'): Promise<Row[]> {
     const out: Row[] = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await build(this.sb.from(table).select(select)).range(from, from + 999);
@@ -223,14 +233,14 @@ export class SupabaseStore implements DataStore {
   async saveEmployee(e: Employee) {
     const { data: exists } = await this.sb.from('employees').select('id').eq('id', e.id).maybeSingle();
     const { error } = await this.sb.rpc('save_employee', {
-      p_emp: empToRow(e), p_label: exists ? `Edita ficha de ${e.nombre}` : `Alta de ${e.nombre}`,
+      p_emp: asJson(empToRow(e)), p_label: exists ? `Edita ficha de ${e.nombre}` : `Alta de ${e.nombre}`,
     });
     fail(error);
     return e;
   }
 
   async saveCode(c: Code) {
-    const { error } = await this.sb.rpc('save_code', { p_code: codeToRow(c), p_label: `Clave ${c.code}` });
+    const { error } = await this.sb.rpc('save_code', { p_code: asJson(codeToRow(c)), p_label: `Clave ${c.code}` });
     fail(error);
   }
 
@@ -249,13 +259,17 @@ export class SupabaseStore implements DataStore {
   }
 
   async saveSetting(key: string, value: unknown, label: string) {
-    const { error } = await this.sb.rpc('save_setting', { p_key: key, p_value: value, p_label: label });
+    const { error } = await this.sb.rpc('save_setting', { p_key: key, p_value: asJson(value), p_label: label });
     fail(error);
+  }
+
+  async markExport() {
+    await this.sb.rpc('mark_export').then(() => undefined, () => undefined);
   }
 
   async logError(e: AppErrorReport) {
     // Sin await del resultado: si falla (sin conexión, migración 010 sin aplicar), no se hace nada
-    await this.sb.rpc('log_error', { p_message: e.message, p_stack: e.stack ?? null, p_version: e.version, p_url: e.url, p_user_agent: e.userAgent })
+    await this.sb.rpc('log_error', { p_message: e.message, p_stack: sqlNull(e.stack), p_version: e.version, p_url: e.url, p_user_agent: e.userAgent })
       .then(() => undefined, () => undefined);
   }
 
@@ -348,12 +362,12 @@ export class SupabaseStore implements DataStore {
 
   async importDataset(d: Dataset, label: string) {
     const { error } = await this.sb.rpc('replace_all', {
-      p_data: {
+      p_data: asJson({
         employees: d.employees.map(empToRow),
         codes: d.codes.map(codeToRow),
         entries: d.entries.map((e) => ({ employee_id: e.employeeId, day: e.date, code: e.code })),
         notes: (d.notes ?? []).map((n) => ({ employee_id: n.employeeId, day: n.date, text: n.text, author: n.author })),
-      },
+      }),
       p_label: label,
       p_action: 'import',
     });
@@ -457,7 +471,7 @@ export class SupabaseStore implements DataStore {
   }
 
   async setAdminPassword(current: string | null, next: string) {
-    const { error } = await this.sb.rpc('set_admin_password', { p_current: current, p_new: next });
+    const { error } = await this.sb.rpc('set_admin_password', { p_current: sqlNull(current), p_new: next });
     fail(error);
   }
 }

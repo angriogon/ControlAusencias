@@ -175,6 +175,14 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     setSettings((s) => ({ ...s, ops: next }));
   }, [store]);
 
+  /** Última exportación a Excel (copia fuera de la app), si se ha hecho alguna. */
+  const lastExport = typeof settings.ultima_exportacion === 'string' ? settings.ultima_exportacion : null;
+  /** Anota una exportación (se ve al momento; los demás la reciben con el resto de ajustes). */
+  const markExport = useCallback(async () => {
+    await store.markExport();
+    setSettings((s) => ({ ...s, ultima_exportacion: new Date().toISOString() }));
+  }, [store]);
+
   /** Guarda una ficha y la deja ya actualizada en pantalla (lanza el error del servidor si falla). */
   const saveEmployee = useCallback(async (e: Employee) => {
     await store.saveEmployee(e);
@@ -365,6 +373,8 @@ export function useAppData(store: DataStore, onErrorProp: (msg: string) => void)
     groups,
     saveGroups,
     saveEmployee,
+    lastExport,
+    markExport,
     saveOps,
     status,
     canEdit,

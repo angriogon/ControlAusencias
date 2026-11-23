@@ -603,3 +603,6 @@ fieldset.equipos legend { font-size: 12px; font-weight: 600; color: var(--muted)
 .error-screen { max-width: 640px; margin: 40px auto; }
 .err-stack { white-space: pre-wrap; font-size: 11px; background: #f7f9fc; border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 260px; overflow: auto; }
 .ok-text { color: var(--ok); font-weight: 600; }
+.more-filters { position: relative; }
+.more-pop { left: 0; right: auto; gap: 6px; padding: 8px; min-width: 200px; }
+.more-pop select { width: 100%; }

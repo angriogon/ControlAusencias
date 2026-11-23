@@ -41,6 +41,8 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
   const [card, setCard] = useState<Employee | null>(null);
   /** Filtro de la leyenda de grupos: id del grupo, '-' = sin grupo, '' = todos. */
   const [grp, setGrp] = useState('');
+  const [more, setMore] = useState(false);
+  const moreCount = (tl ? 1 : 0) + (groupBy !== 'none' ? 1 : 0);
 
   useEffect(() => {
     try { localStorage.setItem(PREFS, JSON.stringify({ equipo, zona, tl, groupBy, showLegend })); } catch { /* sin almacenamiento */ }
@@ -141,13 +143,25 @@ export function CalendarView({ data, onEditEmployee, onSaveSiglas, presence, onC
             <option value="">Zonas</option>
             {opts('zona').map((o) => <option key={o}>{o}</option>)}
           </select>
-          <select value={tl} onChange={(e) => setTl(e.target.value)} aria-label="Team leader" className={tl ? 'on' : ''}>
-            <option value="">Team leader</option>
-            {opts('teamLeader').map((o) => <option key={o}>{o}</option>)}
-          </select>
-          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} aria-label="Agrupar" title="Agrupar filas" className={groupBy !== 'none' ? 'on' : ''}>
-            {Object.entries(GROUP_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <div className="more-filters">
+            <button className={moreCount ? 'on-toggle' : ''} aria-expanded={more} onClick={() => setMore((v) => !v)} title="Team leader y agrupar filas">
+              ⋯ Más{moreCount ? ` (${moreCount})` : ''}
+            </button>
+            {more && (
+              <>
+                <div className="menu-backdrop" onClick={() => setMore(false)} />
+                <div className="menu-pop more-pop">
+                  <select value={tl} onChange={(e) => setTl(e.target.value)} aria-label="Team leader" className={tl ? 'on' : ''}>
+                    <option value="">Team leader</option>
+                    {opts('teamLeader').map((o) => <option key={o}>{o}</option>)}
+                  </select>
+                  <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)} aria-label="Agrupar" title="Agrupar filas" className={groupBy !== 'none' ? 'on' : ''}>
+                    {Object.entries(GROUP_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
           {filtersOn && <button className="link" onClick={() => { setQ(''); setEquipo(''); setZona(''); setTl(''); setGrp(''); }} title="Quitar filtros">✕ Filtros</button>}
         </div>
 

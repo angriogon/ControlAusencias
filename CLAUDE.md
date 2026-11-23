@@ -15,7 +15,7 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 ## Stack y comandos
 
 - React 19 + TypeScript 7 + Vite 8 + vite-plugin-pwa. Node 22.
-- `npm ci` · `npx tsc -b` (tipos) · `npm test` (vitest) · `npm run e2e` (Playwright: compila en modo local y prueba las pantallas en escritorio y móvil; también en CI antes de publicar) · `npm run build`. Antes de fusionar: tipos + `npm test` + `npm run e2e`.
+- `npm ci` · `npx tsc -b` (tipos) · `npm test` (vitest) · `npm run lint` (oxlint: errores de corrección y reglas de React; tope de 29 avisos de dependencias de hooks, no subirlo) · `npm run e2e` (Playwright: compila en modo local y prueba las pantallas en escritorio y móvil; también en CI antes de publicar) · `npm run build`. Antes de fusionar: tipos + `npm run lint` + `npm test` + `npm run e2e`. CI además pasa `npm audit --omit=dev` y Dependabot propone actualizaciones los lunes.
 - Modo local (demo, sin servidor): `VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npx vite build --outDir /tmp/dist-local` y `npx vite preview --outDir /tmp/dist-local --port 4180`. Sirve para probar con Playwright (`require('playwright')`), importando el Excel real desde «Historial y copias → Excel».
 - `.env.local` (no versionado): `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` del proyecto Supabase (la clave anon es pública por diseño; la seguridad está en RLS y en las funciones).
 - CI: `.github/workflows/pruebas.yml` (cada PR: tipos, pruebas, build) y `deploy.yml` (push a `main`: pruebas + build + GitHub Pages en `https://angriogon.github.io/ControlAusencias/`; usa las Variables `VITE_SUPABASE_URL/ANON_KEY` del repo).
@@ -30,16 +30,17 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 - `src/lib/ops.ts`: cobertura por zona, candidatos «¿Quién puede ir?», carga de PC, saldos, revisión de datos.
 - `src/lib/notes.ts`: tipos de nota guardados como texto con prefijo (🩺 Médico, 🚐 Taller/ITV, 📌 Tarea, 🎓 Formación, ✅ hecha), agenda, tareas pendientes y repetidas.
 - Carga diferida: `App.tsx` importa cada sección con `lazy()` y las precarga en segundo plano (`usePrefetch`); el lector del Excel (`excelImport`) se descarga solo al sincronizar o importar.
+- Seguridad: CSP + referrer generados al compilar (`securityHeaders` en `vite.config.ts`, con el host de Supabase); si se añade otro servicio externo hay que incluirlo en `connect-src`. Cliente tipado con `src/data/database.types.ts` (regenerar con el generador de tipos de Supabase tras cada migración).
 - Errores: `lib/errorLog.ts` (no capturados → `store.logError`, deduplicados; recarga una vez si tras publicar falta un trozo de la app) y `components/ErrorBoundary` por pestaña. Se ven en Ajustes → Errores (RPC `log_error`/`list_errors`).
 - Vistas (4 pestañas): `views/CalendarView` (+ `components/Grid`, `CodePicker`); `OpsView` + `views/ops/*` (Centro de mando, Agenda, Cobertura [mapa · ¿Quién puede ir?], Cifras [Saldos · Carga · `SummaryView`]); `BackupView` = Historial y copias (`HistoryView`, `DataView part="copias"|"excel"`: copias, sincronización, exportar/importar); `SettingsView` + `views/settings/*` (personas, claves, grupos, zonas, revisar datos, usuarios, contraseña admin). Móvil: `src/mobile/`. Las pestañas guardadas con nombres antiguos se traducen al cargar (`storedTab`, `storedSub`).
 
 ## Supabase (proyecto `wfgnlhgewyybbmgrchro`, UE)
 
-- Migraciones en `supabase/migrations/` (001…010 **aplicadas** en producción). Se guardan en el repo con el número siguiente. Desde la sesión del servidor las escrituras con el conector de Supabase se cuelgan: el usuario las pega en el SQL Editor y luego se comprueban con consultas de solo lectura.
+- Migraciones en `supabase/migrations/` (001…011 **aplicadas** en producción; la 011 = altas como lector, auxiliares en esquema `private`, índice entries(code), `mark_export`). Se guardan en el repo con el número siguiente. Desde la sesión del servidor las escrituras con el conector de Supabase se cuelgan: el usuario las pega en el SQL Editor y luego se comprueban con consultas de solo lectura.
 - Escrituras **solo por funciones** `security definer` (tablas sin DML directo para anon/authenticated): `apply_entries`, `apply_notes`, `save_employee`, `save_code`, `replace_all`, `revert_changes/revert_batch`, `save_setting`, `set_user_role`, `sync_excel`… Cada escritura queda en `change_log` por triggers (lote = `batch_id`/`batch_label`).
 - Modo administrador: contraseña bcrypt en `admin_config`, 4 h en `profiles.admin_until`. Cambios a más de 5 personas exigen modo admin (en servidor). Roles: admin, editor, lector.
 - `pg_cron`: copia diaria a las 3:00 (`copia-diaria-ausencias`), se guardan las 60 últimas automáticas.
-- Para probar SQL: transacción con `begin; … rollback;`, suplantando usuarios con `set_config('request.jwt.claims', …)` y `set local role authenticated`. Usuarios: AMRG (admin) y editores marg, rofb, vgp.
+- Para probar SQL: transacción con `begin; … rollback;`, suplantando usuarios con `set_config('request.jwt.claims', …)` y `set local role authenticated`. Usuarios: AMRG (admin) y editores marg, rofb, vgp, ceag. El equipo de dispatch (todos editores) es CEAG, AMRG, ROFB, MARG, JPC, ASGJ y VGP: las altas nuevas entran como **lector** y hay que subirlas a editor en Ajustes → Usuarios. El registro abierto de Supabase Auth debe estar desactivado (las cuentas se crean en Authentication → Users).
 
 ## Reglas de negocio que no hay que romper
 

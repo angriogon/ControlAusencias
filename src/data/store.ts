@@ -62,6 +62,9 @@ export interface DataStore {
   /** Comunica en qué celda estoy (null = en ninguna). */
   setCursor?(cell: { employeeId: string; date: string } | null): void;
 
+  /** Anota que se ha exportado a Excel (para el recordatorio de copia fuera de la app). Nunca falla. */
+  markExport(): Promise<void>;
+
   // Registro de errores de la app (no debe fallar nunca: si no se puede guardar, se ignora)
   logError(e: AppErrorReport): Promise<void>;
   /** Solo rol administrador. */

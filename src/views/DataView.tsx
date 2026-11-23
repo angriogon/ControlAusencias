@@ -11,6 +11,7 @@ import type { ExcelSync } from '../data/useExcelSync';
 import type { DiffKind } from '../lib/excelSync';
 import { relativeTime } from '../lib/dates';
 import { keepSiglas } from '../lib/siglas';
+import { EXPORT_EVERY_DAYS, exportDays } from '../lib/exportReminder';
 
 /** Copias de seguridad, exportar a Excel e importar el Excel antiguo. */
 /** «copias»: puntos de restauración. «excel»: sincronización, exportar e importar. */
@@ -65,6 +66,7 @@ export function DataView({ store, data, user, sync, part }: { store: DataStore; 
     const d = await store.getSnapshot(s.id);
     const dates = d.entries.map((e) => e.date).sort();
     await exportToExcel(d, dates[0] ?? expFrom, dates[dates.length - 1] ?? expTo, `Copia ${formatDateTime(s.createdAt).replace(/[/: ]/g, '-')}.xlsx`);
+    await data.markExport();
   });
 
   const exportNow = () => wrap('export', async () => {
@@ -76,6 +78,7 @@ export function DataView({ store, data, user, sync, part }: { store: DataStore; 
       { employees: data.employees, codes: data.codes, entries: [...data.entries.values()], notes: [...data.notes.values()] },
       expFrom, expTo, `Control Ausencias ${formatDate(expFrom).replace(/\//g, '-')} a ${formatDate(expTo).replace(/\//g, '-')}.xlsx`,
     );
+    await data.markExport();
   });
 
   const pickFile = (f: File | undefined) => {
@@ -161,6 +164,12 @@ export function DataView({ store, data, user, sync, part }: { store: DataStore; 
           <button onClick={exportNow} disabled={!!busy}>{busy === 'export' ? 'Generando…' : '⬇ Descargar Excel'}</button>
         </div>
         <p className="muted small">Mismo formato que la hoja de siempre (con colores), más una hoja de resumen y la leyenda.</p>
+        <p className={`small ${exportDays(data.lastExport) > EXPORT_EVERY_DAYS ? 'warn-box' : 'muted'}`}>
+          💾 <b>Copia fuera de la app:</b> {data.lastExport
+            ? <>última exportación {relativeTime(data.lastExport)} ({formatDateTime(data.lastExport)}).</>
+            : <>todavía no se ha exportado nunca.</>}
+          {' '}Guarda el Excel en SharePoint al menos una vez por semana: si Supabase fallara, sería la copia de seguridad.
+        </p>
       </section>
 
       <section className="panel">

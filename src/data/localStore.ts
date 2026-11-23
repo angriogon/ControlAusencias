@@ -254,6 +254,11 @@ export class LocalStore implements DataStore {
     await this.persist();
   }
 
+  async markExport() {
+    const all = await this.loadSettings();
+    await idbSet('settings', { ...all, ultima_exportacion: new Date().toISOString() });
+  }
+
   // En modo local los errores se guardan en este navegador (los 50 últimos)
   async logError(e: AppErrorReport) {
     try {

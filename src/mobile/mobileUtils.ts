@@ -24,6 +24,9 @@ const IDLE_MS = 8 * 3600 * 1000;
  * pueden perder y contienen datos sensibles). Se comprueba al abrir la app, al
  * volver a ella y cada minuto.
  */
+/** Cuenta como actividad (p. ej. cada comprobación de la sincronización con el Excel). */
+export const touchActivity = () => { try { localStorage.setItem(LAST_ACTIVITY, String(Date.now())); } catch { /* */ } };
+
 export function useIdleLogout(enabled: boolean, onLogout: () => void) {
   useEffect(() => {
     if (!enabled) return;
