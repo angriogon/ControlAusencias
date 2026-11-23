@@ -36,7 +36,7 @@ PWA que sustituye al Excel «Control Ausencias presencial» (SharePoint) del equ
 
 ## Supabase (proyecto `wfgnlhgewyybbmgrchro`, UE)
 
-- Migraciones en `supabase/migrations/` (001…010 **aplicadas** en producción; 011 = seguridad: altas como lector, auxiliares en esquema `private`, índice entries(code), `mark_export`). Se guardan en el repo con el número siguiente. Desde la sesión del servidor las escrituras con el conector de Supabase se cuelgan: el usuario las pega en el SQL Editor y luego se comprueban con consultas de solo lectura.
+- Migraciones en `supabase/migrations/` (001…011 **aplicadas** en producción; la 011 = altas como lector, auxiliares en esquema `private`, índice entries(code), `mark_export`). Se guardan en el repo con el número siguiente. Desde la sesión del servidor las escrituras con el conector de Supabase se cuelgan: el usuario las pega en el SQL Editor y luego se comprueban con consultas de solo lectura.
 - Escrituras **solo por funciones** `security definer` (tablas sin DML directo para anon/authenticated): `apply_entries`, `apply_notes`, `save_employee`, `save_code`, `replace_all`, `revert_changes/revert_batch`, `save_setting`, `set_user_role`, `sync_excel`… Cada escritura queda en `change_log` por triggers (lote = `batch_id`/`batch_label`).
 - Modo administrador: contraseña bcrypt en `admin_config`, 4 h en `profiles.admin_until`. Cambios a más de 5 personas exigen modo admin (en servidor). Roles: admin, editor, lector.
 - `pg_cron`: copia diaria a las 3:00 (`copia-diaria-ausencias`), se guardan las 60 últimas automáticas.
